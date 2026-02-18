@@ -2736,15 +2736,23 @@ function shutdownPhase3() {
   // Kill animation loop
   window.animate = function() {};
 
-  // Fade to black overlay
+  // Scanline wipe: black lines crawl down the screen
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:transparent;transition:background 1.5s;';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;overflow:hidden;';
   document.body.appendChild(overlay);
 
-  // Fade to black
-  requestAnimationFrame(() => { overlay.style.background = '#0a0a0a'; });
+  const totalLines = 40;
+  for (let i = 0; i < totalLines; i++) {
+    const line = document.createElement('div');
+    line.style.cssText = `position:absolute;left:0;right:0;height:${100/totalLines}vh;top:${i*(100/totalLines)}vh;background:#0a0a0a;transform:scaleX(0);transform-origin:left;transition:transform 0.15s ease-in;`;
+    overlay.appendChild(line);
+    setTimeout(() => { line.style.transform = 'scaleX(1)'; }, i * 30 + Math.random() * 20);
+  }
 
+  // After wipe completes, show final screen
   setTimeout(() => {
+    overlay.style.background = '#0a0a0a';
+    overlay.childNodes.forEach(c => c.remove());
     const glitchChars = '░▒▓█▄▀■□▪▫●○◆◇⬡⬢';
     function rndChar() { return glitchChars[Math.floor(Math.random() * glitchChars.length)]; }
     function rndLine() {
@@ -2795,7 +2803,7 @@ function shutdownPhase3() {
     style.textContent = '@keyframes shutdown-blink { 0%,100%{opacity:1} 50%{opacity:0.6} }';
     document.head.appendChild(style);
 
-  }, 2000);
+  }, 1800);
 }
 
 // Send message on Enter, auto-type on any other key
