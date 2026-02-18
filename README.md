@@ -64,6 +64,7 @@ Type `/` in the input field to see command hints. Triggers also work with `Ctrl+
 | `/link` | P2P 연결 열기/닫기 | Open/close P2P link |
 | `/link <코드>` | 다른 화면에 연결 | Connect to another screen |
 | `/link-slot <N>` | 최대 연결 수 설정 | Set max connections |
+| `/shutdown` | 시스템 해킹 종료 (되돌릴 수 없음) | System hack & shutdown (irreversible) |
 
 ## GitHub
 
