@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIA :: ARGUS NETWORK v7.4.1</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #060a10;
+    --panel: rgba(8, 18, 32, 0.85);
+    --border: rgba(40, 120, 200, 0.2);
+    --border-bright: rgba(40, 120, 200, 0.5);
+    --accent: #1e90ff;
+    --accent-dim: rgba(30, 144, 255, 0.15);
+    --accent-glow: rgba(30, 144, 255, 0.4);
+    --green: #00e676;
+    --green-dim: rgba(0, 230, 118, 0.15);
+    --red: #ff3d3d;
+    --red-dim: rgba(255, 61, 61, 0.15);
+    --amber: #ffab00;
+    --amber-dim: rgba(255, 171, 0, 0.15);
+    --text: #c8d8ec;
+    --text-dim: #4a6080;
+    --text-bright: #e8f0ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    cursor: none;
+    user-select: none;
+  }
+
+  /* Show cursor only on input */
+  .comms-input { cursor: text !important; }
+
+  /* Scanlines */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(30,144,255,0.015) 2px, rgba(30,144,255,0.015) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Vignette */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.5) 100%);
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  /* TOP BAR */
+  .top-bar {
+    height: 36px;
+    background: linear-gradient(90deg, rgba(180,0,0,0.2), rgba(180,0,0,0.05) 30%, rgba(180,0,0,0.05) 70%, rgba(180,0,0,0.2));
+    border-bottom: 1px solid rgba(255,50,50,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: var(--red);
+  }
+
+  .top-bar .blink-dot {
+    width: 6px; height: 6px;
+    background: var(--red);
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 10px;
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+  .top-bar .classification { text-transform: uppercase; }
+  .top-bar .sys-id { color: rgba(255,80,80,0.6); font-size: 10px; }
+
+  /* MAIN GRID */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 300px;
+    grid-template-rows: 1fr;
+    height: calc(100vh - 36px - 28px);
+    gap: 1px;
+  }
+
+  /* LEFT PANEL */
+  .left-panel {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 10px 14px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-header .indicator {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+
+  /* Agent list */
+  .agent-list { flex: 1; overflow: hidden; padding: 6px 0; }
+
+  .agent-item {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(40,120,200,0.08);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    transition: background 0.3s;
+  }
+
+  .agent-item:nth-child(3) { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+
+  .agent-item .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-standby { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .status-dark { background: var(--red); box-shadow: 0 0 4px var(--red); animation: blink 2s infinite; }
+  .status-offline { background: #444; }
+
+  .agent-info { flex: 1; }
+  .agent-code { font-family: 'Share Tech Mono', monospace; color: var(--text-bright); font-size: 13px; }
+  .agent-loc { color: var(--text-dim); font-size: 10px; letter-spacing: 1px; font-family: 'Share Tech Mono', monospace; }
+  .agent-role { font-size: 10px; color: var(--text-dim); }
+
+  /* CENTER */
+  .center-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .center-top {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    min-height: 0;
+  }
+
+  /* Map area */
+  .map-container {
+    background: var(--panel);
+    position: relative;
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+
+  .map-title {
+    position: absolute;
+    top: 10px; left: 14px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    z-index: 10;
+    text-transform: uppercase;
+  }
+
+  .map-canvas { width: 100%; height: 100%; }
+
+  /* Surveillance feed */
+  .surveil-container {
+    background: var(--panel);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .surveil-header {
+    padding: 8px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 1.5px;
+  }
+
+  .surveil-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    background: rgba(0,0,0,0.3);
+  }
+
+  .cam-feed {
+    background: #0a0e14;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cam-feed canvas { width: 100%; height: 100%; }
+
+  .cam-label {
+    position: absolute;
+    bottom: 6px; left: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 1px;
+  }
+
+  .cam-rec {
+    position: absolute;
+    top: 6px; right: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .cam-rec::before {
+    content: '';
+    width: 5px; height: 5px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: blink 1s infinite;
+  }
+
+  /* Center bottom data feed */
+  .center-bottom {
+    height: 180px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .data-header {
+    padding: 6px 14px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .data-feed {
+    flex: 1;
+    overflow: hidden;
+    padding: 8px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  .data-feed .highlight { color: var(--green); }
+  .data-feed .warn { color: var(--amber); }
+  .data-feed .alert { color: var(--red); }
+  .data-feed .info { color: var(--accent); }
+
+  /* RIGHT PANEL */
+  .right-panel {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Target profile */
+  .target-section {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .target-photo {
+    width: 100%;
+    height: 140px;
+    background: linear-gradient(135deg, #0a1525 0%, #0f2035 100%);
+    border: 1px solid var(--border);
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .target-photo canvas { width: 100%; height: 100%; }
+
+  .target-label {
+    position: absolute;
+    bottom: 6px; left: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    color: var(--red);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .target-meta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    line-height: 2;
+  }
+
+  .target-meta .label { color: var(--text-dim); }
+  .target-meta .value { color: var(--text-bright); }
+  .target-meta .threat { color: var(--red); font-weight: bold; }
+
+  /* Comms */
+  .comms-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .comms-log {
+    flex: 1;
+    padding: 8px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    line-height: 1.8;
+    overflow-y: auto;
+    overflow-x: hidden;
+    color: var(--text-dim);
+    scroll-behavior: smooth;
+  }
+
+  .comms-log::-webkit-scrollbar { width: 3px; }
+  .comms-log::-webkit-scrollbar-track { background: transparent; }
+  .comms-log::-webkit-scrollbar-thumb { background: var(--border-bright); }
+
+  .comms-log .ts { color: var(--text-dim); }
+  .comms-log .src { color: var(--accent); }
+  .comms-log .msg { color: var(--text); }
+  .comms-log .encrypted { color: var(--amber); font-style: italic; }
+
+  /* Comms input */
+  .comms-input-wrap {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    height: 32px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.3);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .comms-input-prefix {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--green);
+    white-space: nowrap;
+    letter-spacing: 1px;
+  }
+
+  .comms-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-bright);
+    caret-color: var(--green);
+    letter-spacing: 0.5px;
+  }
+
+  .comms-input::placeholder {
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* Signal bars */
+  .signal-section {
+    height: 80px;
+    border-top: 1px solid var(--border);
+    padding: 8px 14px;
+  }
+
+  .signal-section canvas { width: 100%; height: 100%; }
+
+  /* BOTTOM BAR */
+  .bottom-bar {
+    height: 28px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .bottom-bar .net-status { color: var(--green); }
+  .bottom-bar .encryption { color: var(--accent); }
+  .clock { color: var(--text-bright); font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 2px; }
+
+  /* Glitch effect - occasional */
+  @keyframes glitch {
+    0%, 95%, 100% { transform: none; filter: none; }
+    96% { transform: translate(-2px, 1px); filter: hue-rotate(90deg); }
+    97% { transform: translate(2px, -1px); filter: hue-rotate(-90deg); }
+    98% { transform: translate(-1px, -1px); filter: hue-rotate(45deg); }
+  }
+
+  .glitch-target {
+    animation: glitch 12s infinite;
+  }
+
+  /* Grid lines animation for map */
+  @keyframes sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Pulse ring */
+  @keyframes pulseRing {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(3); opacity: 0; }
+  }
+
+  .fullscreen-hint {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: rgba(200,216,236,0.3);
+    letter-spacing: 2px;
+    z-index: 10000;
+    animation: fadeOut 4s forwards 3s;
+  }
+
+  @keyframes fadeOut { to { opacity: 0; } }
+
+  /* MAP ALERT OVERLAY */
+  .map-alert-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .map-alert-overlay.active { opacity: 1; }
+
+  .map-alert-box {
+    border: 2px solid var(--red);
+    background: rgba(255,20,20,0.08);
+    padding: 12px 30px;
+    text-align: center;
+    animation: alertPulse 0.6s infinite;
+  }
+
+  @keyframes alertPulse {
+    0%,100% { border-color: rgba(255,61,61,0.9); box-shadow: 0 0 30px rgba(255,0,0,0.15); }
+    50% { border-color: rgba(255,61,61,0.3); box-shadow: 0 0 10px rgba(255,0,0,0.05); }
+  }
+
+  .map-alert-box .alert-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--red);
+    letter-spacing: 4px;
+    margin-bottom: 4px;
+  }
+
+  .map-alert-box .alert-detail {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,150,150,0.8);
+    letter-spacing: 1px;
+  }
+
+  /* Full screen flash */
+  .screen-flash {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,30,30,0.06);
+    pointer-events: none;
+    z-index: 9997;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .screen-flash.active {
+    opacity: 1;
+    animation: screenFlash 0.8s ease-out forwards;
+  }
+
+  @keyframes screenFlash {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body onclick="document.documentElement.requestFullscreen()">
+
+<!-- TOP CLASSIFICATION BAR -->
+<div class="top-bar">
+  <div>
+    <span class="blink-dot"></span>
+    <span class="classification">TOP SECRET // SI // NOFORN // ARGUS</span>
+  </div>
+  <div class="sys-id">CIA-ARGUS-NET // NODE 7-ALPHA // NSA-RELAY ACTIVE</div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid">
+
+  <!-- LEFT: Agent roster -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span class="indicator"></span>
+      FIELD OPERATIVES — ACTIVE
+    </div>
+    <div class="agent-list" id="agentList"></div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center-panel">
+    <div class="center-top">
+      <!-- Map -->
+      <div class="map-container">
+        <div class="map-title">GLOBAL TRACKING — LIVE FEED</div>
+        <canvas class="map-canvas" id="mapCanvas"></canvas>
+        <div class="map-alert-overlay" id="mapAlertOverlay">
+          <div class="map-alert-box">
+            <div class="alert-title" id="mapAlertTitle">⚠ PRIORITY ALERT</div>
+            <div class="alert-detail" id="mapAlertDetail">UNIDENTIFIED CONTACT — SECTOR 7</div>
+          </div>
+        </div>
+      </div>
+      <!-- Surveillance -->
+      <div class="surveil-container">
+        <div class="surveil-header">
+          <span class="blink-dot" style="background:var(--red)"></span>
+          CCTV INTERCEPT — LIVE
+        </div>
+        <div class="surveil-grid">
+          <div class="cam-feed"><canvas id="cam1"></canvas><div class="cam-label">CAM-17A // ISTANBUL</div><div class="cam-rec">REC</div></div>
+          <div class="cam-feed"><canvas id="cam2"></canvas><div class="cam-label">CAM-09C // VIENNA</div><div class="cam-rec">REC</div></div>
+          <div class="cam-feed"><canvas id="cam3"></canvas><div class="cam-label">CAM-33B // TANGIER</div><div class="cam-rec">REC</div></div>
+          <div class="cam-feed"><canvas id="cam4"></canvas><div class="cam-label">CAM-22D // MACAU</div><div class="cam-rec">REC</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Data feed -->
+    <div class="center-bottom">
+      <div class="data-header">
+        <span>SIGINT INTERCEPT LOG</span>
+        <span style="color:var(--green)">■ STREAM ACTIVE</span>
+      </div>
+      <div class="data-feed" id="dataFeed"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Target + Comms -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span class="indicator" style="background:var(--red);box-shadow:0 0 6px var(--red)"></span>
+      PRIMARY TARGET
+    </div>
+    <div class="target-section">
+      <div class="target-photo glitch-target">
+        <canvas id="targetCanvas"></canvas>
+        <div class="target-label">⚠ THREAT LEVEL: CRITICAL</div>
+      </div>
+      <div class="target-meta">
+        <div><span class="label">ALIAS: </span><span class="value">PROMETHEUS</span></div>
+        <div><span class="label">REAL: </span><span class="value">[REDACTED]</span></div>
+        <div><span class="label">NATION: </span><span class="value">UNKNOWN</span></div>
+        <div><span class="label">STATUS: </span><span class="threat">AT LARGE</span></div>
+        <div><span class="label">LAST SEEN: </span><span class="value">48°12'N 16°22'E</span></div>
+        <div><span class="label">THREAT: </span><span class="threat">█████ CRITICAL</span></div>
+      </div>
+    </div>
+    <div class="comms-section">
+      <div class="panel-header">
+        <span class="indicator" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span>
+        ENCRYPTED COMMS
+      </div>
+      <div class="comms-log" id="commsLog"></div>
+      <div class="comms-input-wrap">
+        <span class="comms-input-prefix">OPERATOR &gt;</span>
+        <input type="text" id="commsInput" class="comms-input" autocomplete="off" spellcheck="false" placeholder="Type message..." />
+      </div>
+    </div>
+    <div class="signal-section">
+      <canvas id="signalCanvas"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+  <div><span class="net-status">● NETWORK SECURE</span> &nbsp; AES-256-GCM &nbsp; <span class="encryption">ENCRYPTION LEVEL 5</span></div>
+  <div>UPLINK: OVERWATCH-SAT-3 // LATENCY 12ms // BANDWIDTH 94.7%</div>
+  <div class="clock" id="clock"></div>
+</div>
+
+<div class="fullscreen-hint">CLICK ANYWHERE FOR FULLSCREEN</div>
+<div class="screen-flash" id="screenFlash"></div>
+
+<script>
+// ============= CLOCK =============
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,'0');
+  const m = String(now.getUTCMinutes()).padStart(2,'0');
+  const s = String(now.getUTCSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s} UTC`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============= AGENTS =============
+const agents = [
+  { code: '001', name: 'AEGIS', loc: 'BERLIN, DE', status: 'active', role: 'FIELD OPS' },
+  { code: '003', name: 'COBRA', loc: 'KARACHI, PK', status: 'standby', role: 'INTEL' },
+  { code: 'PP', name: 'PAPA', loc: 'VIENNA, AT', status: 'active', role: 'FIELD OPS' },
+  { code: '008', name: 'ARGENT', loc: 'UNKNOWN', status: 'dark', role: 'DEEP COVER' },
+  { code: '004', name: 'FALCON', loc: 'TANGIER, MA', status: 'active', role: 'SURVEILLANCE' },
+  { code: '009', name: 'SPECTRE', loc: 'MACAU, CN', status: 'active', role: 'FIELD OPS' },
+  { code: '002', name: 'PHOENIX', loc: 'ISTANBUL, TR', status: 'standby', role: 'EXTRACTION' },
+  { code: '006', name: 'TREVELYAN', loc: 'SIGNAL LOST', status: 'dark', role: 'UNKNOWN' },
+  { code: '005', name: 'RAVEN', loc: 'MOSCOW, RU', status: 'active', role: 'INTEL' },
+  { code: '0011', name: 'GHOST', loc: 'PYONGYANG, KP', status: 'offline', role: 'DEEP COVER' },
+  { code: '0012', name: 'ORACLE', loc: 'LANGLEY, US', status: 'active', role: 'ANALYST' },
+  { code: '0010', name: 'SHADOW', loc: 'TEHRAN, IR', status: 'standby', role: 'INTEL' },
+];
+
+const agentListEl = document.getElementById('agentList');
+agents.forEach(a => {
+  const div = document.createElement('div');
+  div.className = 'agent-item';
+  div.innerHTML = `
+    <div class="status-dot status-${a.status}"></div>
+    <div class="agent-info">
+      <div class="agent-code">${a.code} — ${a.name}</div>
+      <div class="agent-loc">${a.loc}</div>
+    </div>
+  `;
+  agentListEl.appendChild(div);
+});
+
+// ============= MAP CANVAS =============
+const mapC = document.getElementById('mapCanvas');
+const mapCtx = mapC.getContext('2d');
+let mapW, mapH;
+
+function resizeMap() {
+  const r = mapC.parentElement.getBoundingClientRect();
+  mapC.width = r.width * 2;
+  mapC.height = r.height * 2;
+  mapW = mapC.width;
+  mapH = mapC.height;
+}
+resizeMap();
+window.addEventListener('resize', resizeMap);
+
+// Simplified world map coordinates (rough outlines)
+const continents = [
+  // Europe
+  [[0.47,0.18],[0.48,0.15],[0.50,0.14],[0.52,0.13],[0.54,0.14],[0.56,0.15],[0.57,0.18],[0.56,0.22],[0.54,0.25],[0.52,0.26],[0.50,0.28],[0.48,0.27],[0.46,0.24],[0.45,0.20]],
+  // Africa
+  [[0.45,0.32],[0.48,0.30],[0.52,0.30],[0.55,0.33],[0.56,0.38],[0.55,0.48],[0.54,0.55],[0.52,0.60],[0.50,0.62],[0.48,0.60],[0.46,0.55],[0.44,0.48],[0.43,0.40],[0.44,0.35]],
+  // Asia
+  [[0.57,0.12],[0.60,0.10],[0.65,0.12],[0.70,0.14],[0.75,0.18],[0.78,0.22],[0.80,0.28],[0.78,0.32],[0.75,0.35],[0.70,0.34],[0.65,0.30],[0.60,0.28],[0.58,0.25],[0.57,0.20]],
+  // North America
+  [[0.12,0.12],[0.18,0.10],[0.24,0.12],[0.28,0.18],[0.30,0.25],[0.28,0.30],[0.24,0.32],[0.20,0.30],[0.16,0.28],[0.12,0.24],[0.10,0.18]],
+  // South America
+  [[0.24,0.38],[0.28,0.36],[0.30,0.40],[0.32,0.48],[0.30,0.58],[0.28,0.65],[0.26,0.68],[0.24,0.65],[0.22,0.58],[0.21,0.48],[0.22,0.42]],
+  // Australia
+  [[0.78,0.52],[0.82,0.50],[0.86,0.52],[0.87,0.56],[0.85,0.60],[0.82,0.62],[0.79,0.60],[0.77,0.56]],
+];
+
+const trackingPoints = [
+  { x: 0.53, y: 0.23, label: 'VIENNA', active: true, pulse: true },
+  { x: 0.50, y: 0.20, label: 'BERLIN', active: true },
+  { x: 0.61, y: 0.28, label: 'KARACHI', active: true },
+  { x: 0.46, y: 0.30, label: 'TANGIER', active: true },
+  { x: 0.78, y: 0.28, label: 'MACAU', active: true },
+  { x: 0.52, y: 0.22, label: 'ISTANBUL', active: true },
+  { x: 0.58, y: 0.20, label: 'MOSCOW', active: false },
+  { x: 0.24, y: 0.28, label: 'LANGLEY', active: true, hq: true },
+];
+
+let sweepAngle = 0;
+let mapTime = 0;
+
+// ---- EVENTS SYSTEM ----
+const mapEvents = [];
+
+const eventTypes = [
+  { type: 'alert', color: [255,61,61], label: '⚠ THREAT DETECTED', duration: 280, icon: 'alert' },
+  { type: 'intercept', color: [255,171,0], label: 'SIGNAL INTERCEPT', duration: 220, icon: 'intercept' },
+  { type: 'breach', color: [255,61,61], label: 'SECURITY BREACH', duration: 300, icon: 'breach' },
+  { type: 'contact', color: [0,230,118], label: 'ASSET CONTACT', duration: 200, icon: 'contact' },
+  { type: 'movement', color: [30,144,255], label: 'TARGET MOVEMENT', duration: 250, icon: 'move' },
+  { type: 'detonation', color: [255,100,30], label: '💥 EXPLOSION REPORTED', duration: 350, icon: 'explosion' },
+  { type: 'cyber', color: [180,80,255], label: 'CYBER INTRUSION', duration: 240, icon: 'cyber' },
+  { type: 'extraction', color: [0,230,118], label: 'EXTRACTION IN PROGRESS', duration: 260, icon: 'extraction' },
+];
+
+const eventLocations = [
+  { x: 0.53, y: 0.22, name: 'VIENNA' },
+  { x: 0.49, y: 0.20, name: 'PRAGUE' },
+  { x: 0.55, y: 0.26, name: 'ATHENS' },
+  { x: 0.46, y: 0.35, name: 'CASABLANCA' },
+  { x: 0.65, y: 0.22, name: 'TEHRAN' },
+  { x: 0.72, y: 0.26, name: 'MUMBAI' },
+  { x: 0.82, y: 0.30, name: 'HONG KONG' },
+  { x: 0.85, y: 0.20, name: 'TOKYO' },
+  { x: 0.22, y: 0.22, name: 'NEW YORK' },
+  { x: 0.16, y: 0.28, name: 'MEXICO CITY' },
+  { x: 0.51, y: 0.18, name: 'HAMBURG' },
+  { x: 0.59, y: 0.18, name: 'ST PETERSBURG' },
+  { x: 0.44, y: 0.24, name: 'PARIS' },
+  { x: 0.42, y: 0.22, name: 'MADRID' },
+  { x: 0.54, y: 0.20, name: 'WARSAW' },
+  { x: 0.28, y: 0.42, name: 'BOGOTA' },
+  { x: 0.68, y: 0.18, name: 'ALMATY' },
+  { x: 0.75, y: 0.32, name: 'BANGKOK' },
+  { x: 0.56, y: 0.30, name: 'CAIRO' },
+  { x: 0.50, y: 0.26, name: 'ROME' },
+];
+
+function spawnEvent() {
+  const evType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+  const loc = eventLocations[Math.floor(Math.random() * eventLocations.length)];
+  mapEvents.push({
+    ...evType,
+    x: loc.x + (Math.random() - 0.5) * 0.02,
+    y: loc.y + (Math.random() - 0.5) * 0.02,
+    name: loc.name,
+    age: 0,
+    maxAge: evType.duration,
+    ringPhase: 0,
+  });
+  if (mapEvents.length > 12) mapEvents.shift();
+}
+
+// Spawn events at varying intervals
+setInterval(spawnEvent, 2800);
+setInterval(spawnEvent, 7500);
+// Initial events
+for (let i = 0; i < 3; i++) { setTimeout(spawnEvent, i * 800); }
+
+// ---- DATA PACKETS traveling along lines ----
+const dataPackets = [];
+function spawnPacket() {
+  const hq = trackingPoints.find(p => p.hq);
+  const targets = trackingPoints.filter(p => p.active && !p.hq);
+  if (!hq || targets.length === 0) return;
+  const target = targets[Math.floor(Math.random() * targets.length)];
+  const outbound = Math.random() > 0.4;
+  dataPackets.push({
+    fromX: outbound ? hq.x : target.x,
+    fromY: outbound ? hq.y : target.y,
+    toX: outbound ? target.x : hq.x,
+    toY: outbound ? target.y : hq.y,
+    progress: 0,
+    speed: 0.005 + Math.random() * 0.008,
+    color: outbound ? [30,144,255] : [0,230,118],
+  });
+  if (dataPackets.length > 15) dataPackets.shift();
+}
+setInterval(spawnPacket, 1200);
+
+// ---- MOVING AGENT (PAPA) ----
+let agentPapa = { x: 0.53, y: 0.23, targetX: 0.53, targetY: 0.23, trail: [] };
+function moveAgentPapa() {
+  // Pick random nearby destination
+  agentPapa.targetX = agentPapa.x + (Math.random() - 0.5) * 0.06;
+  agentPapa.targetY = agentPapa.y + (Math.random() - 0.5) * 0.04;
+  agentPapa.targetX = Math.max(0.40, Math.min(0.65, agentPapa.targetX));
+  agentPapa.targetY = Math.max(0.15, Math.min(0.35, agentPapa.targetY));
+}
+setInterval(moveAgentPapa, 4000);
+moveAgentPapa();
+
+// ---- THREAT ZONES ----
+const threatZones = [
+  { x: 0.54, y: 0.23, r: 0.04, label: 'ZONE ALPHA' },
+  { x: 0.65, y: 0.22, r: 0.035, label: 'ZONE BRAVO' },
+];
+
+function drawMap() {
+  mapCtx.clearRect(0, 0, mapW, mapH);
+  
+  // Grid
+  mapCtx.strokeStyle = 'rgba(30,144,255,0.06)';
+  mapCtx.lineWidth = 1;
+  for (let i = 0; i < 20; i++) {
+    mapCtx.beginPath();
+    mapCtx.moveTo(mapW * i / 20, 0);
+    mapCtx.lineTo(mapW * i / 20, mapH);
+    mapCtx.stroke();
+    mapCtx.beginPath();
+    mapCtx.moveTo(0, mapH * i / 20);
+    mapCtx.lineTo(mapW, mapH * i / 20);
+    mapCtx.stroke();
+  }
+
+  // Continents
+  mapCtx.strokeStyle = 'rgba(30,144,255,0.25)';
+  mapCtx.fillStyle = 'rgba(30,144,255,0.04)';
+  mapCtx.lineWidth = 1.5;
+  continents.forEach(pts => {
+    mapCtx.beginPath();
+    pts.forEach((p, i) => {
+      const x = p[0] * mapW, y = p[1] * mapH;
+      i === 0 ? mapCtx.moveTo(x, y) : mapCtx.lineTo(x, y);
+    });
+    mapCtx.closePath();
+    mapCtx.fill();
+    mapCtx.stroke();
+  });
+
+  // ---- THREAT ZONES (pulsing dashed circles) ----
+  threatZones.forEach(tz => {
+    const cx = tz.x * mapW, cy = tz.y * mapH;
+    const r = tz.r * mapW;
+    const pulse = 1 + Math.sin(mapTime * 0.04) * 0.15;
+    const alpha = 0.12 + Math.sin(mapTime * 0.05) * 0.08;
+    // Filled zone
+    mapCtx.fillStyle = `rgba(255,61,61,${alpha * 0.3})`;
+    mapCtx.beginPath();
+    mapCtx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
+    mapCtx.fill();
+    // Dashed border
+    mapCtx.setLineDash([6, 4]);
+    mapCtx.strokeStyle = `rgba(255,61,61,${alpha + 0.1})`;
+    mapCtx.lineWidth = 1.5;
+    mapCtx.stroke();
+    mapCtx.setLineDash([]);
+    // Label
+    mapCtx.font = '12px "Orbitron"';
+    mapCtx.fillStyle = `rgba(255,61,61,${0.4 + Math.sin(mapTime*0.06)*0.2})`;
+    mapCtx.fillText(tz.label, cx - 35, cy - r * pulse - 8);
+  });
+
+  // Connection lines between active points
+  mapCtx.strokeStyle = 'rgba(30,144,255,0.08)';
+  mapCtx.lineWidth = 1;
+  mapCtx.setLineDash([4, 8]);
+  const hq = trackingPoints.find(p => p.hq);
+  trackingPoints.forEach(p => {
+    if (p.active && !p.hq && hq) {
+      mapCtx.beginPath();
+      mapCtx.moveTo(hq.x * mapW, hq.y * mapH);
+      mapCtx.lineTo(p.x * mapW, p.y * mapH);
+      mapCtx.stroke();
+    }
+  });
+  mapCtx.setLineDash([]);
+
+  // ---- DATA PACKETS ----
+  for (let i = dataPackets.length - 1; i >= 0; i--) {
+    const dp = dataPackets[i];
+    dp.progress += dp.speed;
+    if (dp.progress >= 1) { dataPackets.splice(i, 1); continue; }
+    const px = (dp.fromX + (dp.toX - dp.fromX) * dp.progress) * mapW;
+    const py = (dp.fromY + (dp.toY - dp.fromY) * dp.progress) * mapH;
+    // Arc path (curved)
+    const midProgress = dp.progress;
+    const arcY = -Math.sin(midProgress * Math.PI) * 20;
+    const finalPy = py + arcY;
+    // Glow
+    const [r,g,b] = dp.color;
+    mapCtx.shadowColor = `rgba(${r},${g},${b},0.8)`;
+    mapCtx.shadowBlur = 8;
+    mapCtx.fillStyle = `rgba(${r},${g},${b},0.9)`;
+    mapCtx.beginPath();
+    mapCtx.arc(px, finalPy, 3, 0, Math.PI * 2);
+    mapCtx.fill();
+    // Trail
+    mapCtx.shadowBlur = 0;
+    mapCtx.fillStyle = `rgba(${r},${g},${b},0.2)`;
+    for (let t = 1; t <= 4; t++) {
+      const tp = dp.progress - dp.speed * t * 2;
+      if (tp < 0) break;
+      const tx = (dp.fromX + (dp.toX - dp.fromX) * tp) * mapW;
+      const ty = (dp.fromY + (dp.toY - dp.fromY) * tp) * mapH - Math.sin(tp * Math.PI) * 20;
+      mapCtx.beginPath();
+      mapCtx.arc(tx, ty, 2 - t * 0.3, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+  }
+
+  // Tracking points
+  trackingPoints.forEach(p => {
+    const x = p.x * mapW, y = p.y * mapH;
+    
+    // Pulse rings for all points
+    const ringSpeed = p.hq ? 0.6 : 0.8;
+    const pulseR = 6 + (mapTime * ringSpeed % 50) * 0.7;
+    const pulseAlpha = Math.max(0, 0.35 - (mapTime * ringSpeed % 50) * 0.007);
+    const rc = p.hq ? `0,230,118` : (p.active ? `30,144,255` : `255,61,61`);
+    mapCtx.strokeStyle = `rgba(${rc},${pulseAlpha})`;
+    mapCtx.lineWidth = 1.5;
+    mapCtx.beginPath();
+    mapCtx.arc(x, y, pulseR, 0, Math.PI * 2);
+    mapCtx.stroke();
+    // Second ring offset
+    const pulseR2 = 6 + ((mapTime * ringSpeed + 25) % 50) * 0.7;
+    const pulseAlpha2 = Math.max(0, 0.25 - ((mapTime * ringSpeed + 25) % 50) * 0.005);
+    mapCtx.strokeStyle = `rgba(${rc},${pulseAlpha2})`;
+    mapCtx.beginPath();
+    mapCtx.arc(x, y, pulseR2, 0, Math.PI * 2);
+    mapCtx.stroke();
+
+    // Dot
+    mapCtx.fillStyle = p.hq ? '#00e676' : (p.active ? '#1e90ff' : '#ff3d3d');
+    mapCtx.shadowColor = mapCtx.fillStyle;
+    mapCtx.shadowBlur = 12;
+    mapCtx.beginPath();
+    mapCtx.arc(x, y, 4, 0, Math.PI * 2);
+    mapCtx.fill();
+    mapCtx.shadowBlur = 0;
+
+    // Crosshair for active points
+    if (p.active && !p.hq) {
+      const chSize = 10;
+      mapCtx.strokeStyle = `rgba(${rc},0.25)`;
+      mapCtx.lineWidth = 1;
+      mapCtx.beginPath();
+      mapCtx.moveTo(x - chSize, y); mapCtx.lineTo(x - 6, y);
+      mapCtx.moveTo(x + 6, y); mapCtx.lineTo(x + chSize, y);
+      mapCtx.moveTo(x, y - chSize); mapCtx.lineTo(x, y - 6);
+      mapCtx.moveTo(x, y + 6); mapCtx.lineTo(x, y + chSize);
+      mapCtx.stroke();
+    }
+
+    // Label
+    mapCtx.font = '16px "Share Tech Mono"';
+    mapCtx.fillStyle = 'rgba(200,216,236,0.5)';
+    mapCtx.fillText(p.label, x + 12, y + 4);
+  });
+
+  // ---- AGENT PAPA MOVING DOT ----
+  agentPapa.x += (agentPapa.targetX - agentPapa.x) * 0.01;
+  agentPapa.y += (agentPapa.targetY - agentPapa.y) * 0.01;
+  agentPapa.trail.push({ x: agentPapa.x, y: agentPapa.y });
+  if (agentPapa.trail.length > 60) agentPapa.trail.shift();
+  // Trail
+  mapCtx.strokeStyle = 'rgba(255,171,0,0.15)';
+  mapCtx.lineWidth = 1.5;
+  mapCtx.beginPath();
+  agentPapa.trail.forEach((pt, i) => {
+    const sx = pt.x * mapW, sy = pt.y * mapH;
+    i === 0 ? mapCtx.moveTo(sx, sy) : mapCtx.lineTo(sx, sy);
+  });
+  mapCtx.stroke();
+  // PAPA dot
+  const ax = agentPapa.x * mapW, ay = agentPapa.y * mapH;
+  mapCtx.fillStyle = '#ffab00';
+  mapCtx.shadowColor = '#ffab00';
+  mapCtx.shadowBlur = 15;
+  mapCtx.beginPath();
+  mapCtx.arc(ax, ay, 5, 0, Math.PI * 2);
+  mapCtx.fill();
+  mapCtx.shadowBlur = 0;
+  // PAPA label
+  mapCtx.font = 'bold 14px "Orbitron"';
+  mapCtx.fillStyle = '#ffab00';
+  mapCtx.fillText('PAPA', ax + 10, ay - 8);
+  // Diamond marker
+  mapCtx.strokeStyle = 'rgba(255,171,0,0.4)';
+  mapCtx.lineWidth = 1;
+  const dSize = 10 + Math.sin(mapTime * 0.08) * 3;
+  mapCtx.save();
+  mapCtx.translate(ax, ay);
+  mapCtx.rotate(Math.PI / 4);
+  mapCtx.strokeRect(-dSize, -dSize, dSize * 2, dSize * 2);
+  mapCtx.restore();
+
+  // ---- MAP EVENTS ----
+  for (let i = mapEvents.length - 1; i >= 0; i--) {
+    const ev = mapEvents[i];
+    ev.age++;
+    if (ev.age > ev.maxAge) { mapEvents.splice(i, 1); continue; }
+
+    const ex = ev.x * mapW, ey = ev.y * mapH;
+    const lifeRatio = ev.age / ev.maxAge;
+    const [r,g,b] = ev.color;
+    const fadeAlpha = lifeRatio < 0.1 ? lifeRatio * 10 : (lifeRatio > 0.8 ? (1 - lifeRatio) * 5 : 1);
+
+    // Expanding shockwave rings
+    for (let ring = 0; ring < 3; ring++) {
+      const ringAge = (ev.age - ring * 15);
+      if (ringAge < 0) continue;
+      const ringR = ringAge * 0.6;
+      const ringAlpha = Math.max(0, (0.5 - ringR * 0.005)) * fadeAlpha;
+      mapCtx.strokeStyle = `rgba(${r},${g},${b},${ringAlpha})`;
+      mapCtx.lineWidth = 1.5;
+      mapCtx.beginPath();
+      mapCtx.arc(ex, ey, ringR, 0, Math.PI * 2);
+      mapCtx.stroke();
+    }
+
+    // Core blinking dot
+    const blinkOn = Math.sin(ev.age * 0.2) > -0.3;
+    if (blinkOn) {
+      mapCtx.fillStyle = `rgba(${r},${g},${b},${0.8 * fadeAlpha})`;
+      mapCtx.shadowColor = `rgba(${r},${g},${b},0.8)`;
+      mapCtx.shadowBlur = 12;
+      mapCtx.beginPath();
+      mapCtx.arc(ex, ey, 4, 0, Math.PI * 2);
+      mapCtx.fill();
+      mapCtx.shadowBlur = 0;
+    }
+
+    // Rotating reticle
+    const reticleR = 18 + Math.sin(ev.age * 0.05) * 4;
+    mapCtx.save();
+    mapCtx.translate(ex, ey);
+    mapCtx.rotate(ev.age * 0.02);
+    mapCtx.strokeStyle = `rgba(${r},${g},${b},${0.3 * fadeAlpha})`;
+    mapCtx.lineWidth = 1;
+    // Corner brackets
+    for (let c = 0; c < 4; c++) {
+      mapCtx.save();
+      mapCtx.rotate(c * Math.PI / 2);
+      mapCtx.beginPath();
+      mapCtx.moveTo(reticleR, reticleR * 0.3);
+      mapCtx.lineTo(reticleR, reticleR);
+      mapCtx.lineTo(reticleR * 0.3, reticleR);
+      mapCtx.stroke();
+      mapCtx.restore();
+    }
+    mapCtx.restore();
+
+    // Event label with background
+    if (lifeRatio < 0.85) {
+      const labelAlpha = fadeAlpha * 0.9;
+      mapCtx.font = '12px "Orbitron"';
+      const textW = mapCtx.measureText(ev.label).width;
+      // Background bar
+      mapCtx.fillStyle = `rgba(${r},${g},${b},${0.12 * labelAlpha})`;
+      mapCtx.fillRect(ex + 22, ey - 18, textW + 16, 22);
+      mapCtx.strokeStyle = `rgba(${r},${g},${b},${0.3 * labelAlpha})`;
+      mapCtx.lineWidth = 1;
+      mapCtx.strokeRect(ex + 22, ey - 18, textW + 16, 22);
+      // Text
+      mapCtx.fillStyle = `rgba(${r},${g},${b},${0.85 * labelAlpha})`;
+      mapCtx.fillText(ev.label, ex + 30, ey - 2);
+      // Location name
+      mapCtx.font = '10px "Share Tech Mono"';
+      mapCtx.fillStyle = `rgba(${r},${g},${b},${0.5 * labelAlpha})`;
+      mapCtx.fillText(ev.name, ex + 30, ey + 16);
+      // Connecting line
+      mapCtx.strokeStyle = `rgba(${r},${g},${b},${0.2 * labelAlpha})`;
+      mapCtx.beginPath();
+      mapCtx.moveTo(ex + 6, ey);
+      mapCtx.lineTo(ex + 22, ey - 7);
+      mapCtx.stroke();
+    }
+
+    // Explosion specific: extra burst particles
+    if (ev.icon === 'explosion' && ev.age < 60) {
+      for (let p = 0; p < 8; p++) {
+        const angle = (p / 8) * Math.PI * 2 + ev.age * 0.1;
+        const dist = ev.age * 1.2;
+        const px = ex + Math.cos(angle) * dist;
+        const py = ey + Math.sin(angle) * dist;
+        const pAlpha = Math.max(0, 0.6 - ev.age * 0.01);
+        mapCtx.fillStyle = `rgba(255,${100 + ev.age},30,${pAlpha})`;
+        mapCtx.beginPath();
+        mapCtx.arc(px, py, 2, 0, Math.PI * 2);
+        mapCtx.fill();
+      }
+    }
+  }
+
+  // Sweep line from Langley
+  if (hq) {
+    const cx = hq.x * mapW, cy = hq.y * mapH;
+    const sweepLen = 250;
+    // Sweep cone (wider)
+    for (let a = -0.15; a <= 0.15; a += 0.02) {
+      const sx = cx + Math.cos(sweepAngle + a) * sweepLen;
+      const sy = cy + Math.sin(sweepAngle + a) * sweepLen;
+      const alpha = 0.15 * (1 - Math.abs(a) / 0.15);
+      const grad = mapCtx.createLinearGradient(cx, cy, sx, sy);
+      grad.addColorStop(0, `rgba(0,230,118,${alpha})`);
+      grad.addColorStop(1, 'rgba(0,230,118,0)');
+      mapCtx.strokeStyle = grad;
+      mapCtx.lineWidth = 1;
+      mapCtx.beginPath();
+      mapCtx.moveTo(cx, cy);
+      mapCtx.lineTo(sx, sy);
+      mapCtx.stroke();
+    }
+    sweepAngle += 0.015;
+  }
+
+  // ---- COORDINATE READOUT (bottom left of map) ----
+  mapCtx.font = '14px "Share Tech Mono"';
+  mapCtx.fillStyle = 'rgba(200,216,236,0.2)';
+  const lat = (48.2 + Math.sin(mapTime * 0.01) * 0.3).toFixed(4);
+  const lon = (16.4 + Math.cos(mapTime * 0.01) * 0.5).toFixed(4);
+  mapCtx.fillText(`LAT ${lat}°N  LON ${lon}°E  ALT 342m  BEARING ${(mapTime * 0.5 % 360).toFixed(0)}°`, 20, mapH - 20);
+
+  mapTime++;
+  requestAnimationFrame(drawMap);
+}
+drawMap();
+
+// ============= SURVEILLANCE CAMERAS (noise) =============
+function initCamFeed(id) {
+  const c = document.getElementById(id);
+  const ctx = c.getContext('2d');
+  function resize() {
+    const r = c.parentElement.getBoundingClientRect();
+    c.width = r.width;
+    c.height = r.height;
+  }
+  resize();
+  
+  function drawNoise() {
+    const w = c.width, h = c.height;
+    const img = ctx.createImageData(w, h);
+    const data = img.data;
+    
+    // Generate slight greenish noise to look like night vision
+    for (let i = 0; i < data.length; i += 4) {
+      const v = Math.random() * 30 + 5;
+      data[i] = v * 0.4;      // R
+      data[i+1] = v * 0.8;    // G  
+      data[i+2] = v * 0.5;    // B
+      data[i+3] = 255;
+    }
+    
+    // Add some horizontal lines
+    for (let y = 0; y < h; y += 3) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        data[idx] *= 0.7;
+        data[idx+1] *= 0.7;
+        data[idx+2] *= 0.7;
+      }
+    }
+
+    // Random bright spots (simulating movement)
+    for (let s = 0; s < 3; s++) {
+      const sx = Math.random() * w;
+      const sy = Math.random() * h;
+      const sr = 20 + Math.random() * 40;
+      for (let dy = -sr; dy < sr; dy++) {
+        for (let dx = -sr; dx < sr; dx++) {
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < sr) {
+            const px = Math.floor(sx+dx), py = Math.floor(sy+dy);
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+              const idx = (py * w + px) * 4;
+              const boost = (1 - dist/sr) * 25;
+              data[idx] += boost * 0.5;
+              data[idx+1] += boost;
+              data[idx+2] += boost * 0.6;
+            }
+          }
+        }
+      }
+    }
+
+    ctx.putImageData(img, 0, 0);
+    
+    // Crosshair overlay
+    ctx.strokeStyle = 'rgba(30,144,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h);
+    ctx.moveTo(0, h/2); ctx.lineTo(w, h/2);
+    ctx.stroke();
+
+    // Timestamp
+    const now = new Date();
+    ctx.font = '9px "Share Tech Mono"';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText(now.toISOString().replace('T',' ').slice(0,19), 8, 14);
+  }
+
+  setInterval(drawNoise, 150);
+  window.addEventListener('resize', resize);
+}
+
+['cam1','cam2','cam3','cam4'].forEach(initCamFeed);
+
+// ============= TARGET FACE (abstract) =============
+const tC = document.getElementById('targetCanvas');
+const tCtx = tC.getContext('2d');
+function resizeTarget() {
+  const r = tC.parentElement.getBoundingClientRect();
+  tC.width = r.width * 2;
+  tC.height = r.height * 2;
+}
+resizeTarget();
+
+function drawTarget() {
+  const w = tC.width, h = tC.height;
+  tCtx.clearRect(0, 0, w, h);
+  
+  // Abstract face silhouette with scan lines
+  tCtx.fillStyle = 'rgba(15,25,45,1)';
+  tCtx.fillRect(0, 0, w, h);
+  
+  // Head shape
+  const cx = w/2, cy = h * 0.45;
+  tCtx.fillStyle = 'rgba(30,60,100,0.4)';
+  tCtx.beginPath();
+  tCtx.ellipse(cx, cy, w*0.18, h*0.28, 0, 0, Math.PI*2);
+  tCtx.fill();
+  
+  // Shoulders
+  tCtx.beginPath();
+  tCtx.ellipse(cx, h*0.85, w*0.35, h*0.25, 0, Math.PI, 0);
+  tCtx.fill();
+
+  // Facial recognition grid
+  tCtx.strokeStyle = 'rgba(30,144,255,0.15)';
+  tCtx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    tCtx.beginPath();
+    tCtx.ellipse(cx, cy, w*0.05 + i*w*0.02, h*0.07 + i*h*0.03, 0, 0, Math.PI*2);
+    tCtx.stroke();
+  }
+
+  // Scanning line
+  const scanY = (Date.now() / 20) % h;
+  const grad = tCtx.createLinearGradient(0, scanY-10, 0, scanY+10);
+  grad.addColorStop(0, 'rgba(255,61,61,0)');
+  grad.addColorStop(0.5, 'rgba(255,61,61,0.3)');
+  grad.addColorStop(1, 'rgba(255,61,61,0)');
+  tCtx.fillStyle = grad;
+  tCtx.fillRect(0, scanY-10, w, 20);
+
+  // Data points
+  const pts = [[0.38,0.35],[0.62,0.35],[0.50,0.45],[0.43,0.52],[0.57,0.52],[0.50,0.55]];
+  tCtx.fillStyle = 'rgba(255,61,61,0.6)';
+  pts.forEach(p => {
+    tCtx.beginPath();
+    tCtx.arc(p[0]*w, p[1]*h, 3, 0, Math.PI*2);
+    tCtx.fill();
+  });
+  // Lines between
+  tCtx.strokeStyle = 'rgba(255,61,61,0.2)';
+  tCtx.lineWidth = 1;
+  tCtx.beginPath();
+  pts.forEach((p,i) => { i===0 ? tCtx.moveTo(p[0]*w,p[1]*h) : tCtx.lineTo(p[0]*w,p[1]*h); });
+  tCtx.closePath();
+  tCtx.stroke();
+
+  // "MATCH: 94.7%" text
+  tCtx.font = 'bold 22px "Orbitron"';
+  tCtx.fillStyle = 'rgba(255,61,61,0.7)';
+  tCtx.fillText('MATCH: 94.7%', w*0.15, h*0.92);
+
+  requestAnimationFrame(drawTarget);
+}
+drawTarget();
+
+// ============= SIGNAL WAVEFORM =============
+const sigC = document.getElementById('signalCanvas');
+const sigCtx = sigC.getContext('2d');
+function resizeSig() {
+  const r = sigC.parentElement.getBoundingClientRect();
+  sigC.width = r.width * 2;
+  sigC.height = r.height * 2;
+}
+resizeSig();
+
+let sigOffset = 0;
+function drawSignal() {
+  const w = sigC.width, h = sigC.height;
+  sigCtx.clearRect(0, 0, w, h);
+  
+  // Waveform
+  sigCtx.strokeStyle = 'rgba(0,230,118,0.5)';
+  sigCtx.lineWidth = 1.5;
+  sigCtx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const t = x / w * 12 + sigOffset;
+    const y = h/2 + Math.sin(t) * h*0.25 + Math.sin(t*2.7) * h*0.12 + Math.sin(t*0.5) * h*0.1 + (Math.random()-0.5) * 4;
+    x === 0 ? sigCtx.moveTo(x, y) : sigCtx.lineTo(x, y);
+  }
+  sigCtx.stroke();
+
+  // Second waveform (encrypted signal)
+  sigCtx.strokeStyle = 'rgba(30,144,255,0.3)';
+  sigCtx.lineWidth = 1;
+  sigCtx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const t = x / w * 18 + sigOffset * 1.3;
+    const y = h/2 + Math.sin(t*1.5) * h*0.15 + Math.cos(t*3) * h*0.08 + (Math.random()-0.5) * 6;
+    x === 0 ? sigCtx.moveTo(x, y) : sigCtx.lineTo(x, y);
+  }
+  sigCtx.stroke();
+
+  // Center line
+  sigCtx.strokeStyle = 'rgba(200,216,236,0.07)';
+  sigCtx.lineWidth = 1;
+  sigCtx.beginPath();
+  sigCtx.moveTo(0, h/2);
+  sigCtx.lineTo(w, h/2);
+  sigCtx.stroke();
+
+  sigOffset += 0.08;
+  requestAnimationFrame(drawSignal);
+}
+drawSignal();
+
+// ============= DATA FEED =============
+const feedEl = document.getElementById('dataFeed');
+const feedLines = [
+  '<span class="info">[NSA-RELAY]</span> Intercept decoded: PROMETHEUS cell Ankara — Freq 14.223 MHz',
+  '<span class="highlight">[SIGINT]</span> Pattern match: Financial transfer ₿47.3 → Wallet 0xAE3...F91 — Flagged',
+  '<span class="warn">[WARNING]</span> Agent 008 — last contact 72h ago — Protocol NIGHTSHADE initiated',
+  '<span class="info">[SAT-3]</span> Geosync lock confirmed: 48.2083°N, 16.3731°E — Target in range',
+  '<span class="alert">[ALERT]</span> Biometric scan mismatch — Vienna safehouse door access — Possible breach',
+  '<span class="highlight">[ECHELON]</span> Keyword trigger: "PROMETHEUS" + "shipment" — 3 intercepts flagged',
+  '<span class="info">[CIA-SAD]</span> PAPA en route to extraction point — ETA 14 minutes',
+  '<span class="warn">[CYBER]</span> DDoS attempt on ARGUS NODE-3 — Blocked — Origin: 185.220.xx.xx (TOR exit)',
+  '<span class="highlight">[HUMINT]</span> Asset BLUEBIRD confirms: Arms cache relocated — New coords pending',
+  '<span class="alert">[PRIORITY]</span> TECH-DIV: Prototype tracker signal degrading — PAPA device battery < 12%',
+  '<span class="info">[NSA-LINK]</span> Joint op IRON BRIDGE — Phase 2 authorised by COBRA committee',
+  '<span class="warn">[COUNTER-INT]</span> Suspected dead drop — Regent\'s Park bench 7C — Sweep team dispatched',
+  '<span class="highlight">[FININT]</span> Shell company KRONOS HOLDINGS → linked to 3 PROMETHEUS associates',
+  '<span class="info">[SAT-IMINT]</span> Movement detected at compound 48.19N 16.38E — 4 vehicles, 12+ personnel',
+  '<span class="alert">[FLASH]</span> Agent 004 reports shots fired near Tangier harbour — Requesting backup',
+  '<span class="highlight">[SIGINT]</span> Encrypted burst transmission decoded — Rendezvous: Hotel Sacher, 2200 local',
+  '<span class="info">[TECH-DIV]</span> Nanotech tracker firmware updated — All field units synced',
+  '<span class="warn">[ANOMALY]</span> Passport scan — known alias "ERIK VOGT" — Zurich airport — Gate B14',
+];
+
+let feedIdx = 0;
+function addFeedLine() {
+  const line = document.createElement('div');
+  const now = new Date();
+  const ts = now.toISOString().slice(11,19);
+  line.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${feedLines[feedIdx % feedLines.length]}`;
+  feedEl.appendChild(line);
+  feedIdx++;
+  
+  // Keep last ~8 lines
+  while (feedEl.children.length > 8) {
+    feedEl.removeChild(feedEl.firstChild);
+  }
+}
+
+// Initial fill
+for (let i = 0; i < 6; i++) addFeedLine();
+setInterval(addFeedLine, 3500);
+
+// ============= COMMS LOG =============
+const commsEl = document.getElementById('commsLog');
+const commsLines = [
+  { src: 'TECHOPS', msg: 'PAPA, new intel on PROMETHEUS — uploading now' },
+  { src: 'PAPA', msg: 'Copy. Moving to secondary position' },
+  { src: 'DIRECTOR', msg: 'All stations: NIGHTFALL protocol is now ACTIVE' },
+  { src: 'STATION-V', msg: '[ENCRYPTED — AES-256 — DECRYPTING...]', encrypted: true },
+  { src: '004', msg: 'Tangier harbour compromised. Falling back to Alpha' },
+  { src: 'TECHOPS', msg: 'Tracker shows target heading NNW — speed 85km/h' },
+  { src: 'DIRECTOR', msg: 'PAPA: You are authorised. Weapons free.' },
+  { src: 'PAPA', msg: 'Understood. Going dark.' },
+  { src: 'DISPATCH', msg: 'Vienna station reports civilian evac complete' },
+  { src: 'STATION-K', msg: '[ENCRYPTED — QUANTUM CIPHER — PENDING...]', encrypted: true },
+  { src: 'TECHOPS', msg: 'Papa, I\'m reading elevated radiation at the compound' },
+  { src: '001', msg: 'Berlin team in position. Awaiting green light' },
+  { src: 'DIRECTOR', msg: 'All units: Hold positions. Do NOT engage until authorised' },
+  { src: 'PAPA', msg: 'I have visual on the target. Requesting confirmation' },
+  { src: 'TECHOPS', msg: 'Facial recognition: 94.7% match. It\'s him.' },
+  { src: 'DIRECTOR', msg: 'Confirmed. Execute.' },
+];
+
+let commsIdx = 0;
+function addCommsLine() {
+  const c = commsLines[commsIdx % commsLines.length];
+  const now = new Date();
+  const ts = now.toISOString().slice(11,19);
+  const line = document.createElement('div');
+  if (c.encrypted) {
+    line.innerHTML = `<span class="ts">${ts}</span> <span class="src">${c.src}</span>: <span class="encrypted">${c.msg}</span>`;
+  } else {
+    line.innerHTML = `<span class="ts">${ts}</span> <span class="src">${c.src}</span>: <span class="msg">${c.msg}</span>`;
+  }
+  commsEl.appendChild(line);
+  commsIdx++;
+  
+  while (commsEl.children.length > 30) {
+    commsEl.removeChild(commsEl.firstChild);
+  }
+  commsEl.scrollTop = commsEl.scrollHeight;
+}
+
+for (let i = 0; i < 5; i++) addCommsLine();
+setInterval(addCommsLine, 5000);
+
+// ============= RESIZE HANDLER =============
+window.addEventListener('resize', () => {
+  resizeMap();
+  resizeTarget();
+  resizeSig();
+});
+
+// ============= MAP ALERT OVERLAY =============
+const mapAlertOverlay = document.getElementById('mapAlertOverlay');
+const mapAlertTitle = document.getElementById('mapAlertTitle');
+const mapAlertDetail = document.getElementById('mapAlertDetail');
+const screenFlash = document.getElementById('screenFlash');
+
+const alertMessages = [
+  { title: '⚠ PRIORITY ALERT', detail: 'UNIDENTIFIED CONTACT — SECTOR 7-ALPHA' },
+  { title: '⚠ THREAT ESCALATION', detail: 'PROMETHEUS CELL ACTIVATED — VIENNA' },
+  { title: '🔴 AGENT COMPROMISED', detail: 'FALCON-3 COVER BLOWN — INITIATING EXTRACTION' },
+  { title: '⚠ WEAPONS DETECTED', detail: 'RADIOLOGICAL SIGNATURE — TEHRAN COMPOUND' },
+  { title: '🔴 SECURITY BREACH', detail: 'CIA NETWORK INTRUSION ATTEMPT — BLOCKED' },
+  { title: '⚠ INTERCEPT DECODED', detail: 'PROMETHEUS: "THE PACKAGE MOVES AT DAWN"' },
+  { title: '⚠ HOSTILE MOVEMENT', detail: 'ARMED CONVOY — 12 VEHICLES — HEADING NNW' },
+  { title: '🔴 DETONATION EVENT', detail: 'EXPLOSION CONFIRMED — ISTANBUL SAFEHOUSE' },
+  { title: '⚠ SATELLITE ANOMALY', detail: 'UNKNOWN OBJECT ENTERING LOW ORBIT' },
+  { title: '🔴 ASSET IN DANGER', detail: 'BLUEBIRD SENDS DISTRESS — CASABLANCA' },
+  { title: '⚠ CIPHER BROKEN', detail: 'PROMETHEUS ENCRYPTION KEY COMPROMISED' },
+  { title: '⚠ TARGET ACQUIRED', detail: 'PAPA HAS VISUAL — AWAITING AUTHORIZATION' },
+];
+
+function triggerMapAlert() {
+  const msg = alertMessages[Math.floor(Math.random() * alertMessages.length)];
+  mapAlertTitle.textContent = msg.title;
+  mapAlertDetail.textContent = msg.detail;
+  mapAlertOverlay.classList.add('active');
+  
+  // Screen flash
+  screenFlash.classList.remove('active');
+  void screenFlash.offsetWidth;
+  screenFlash.classList.add('active');
+
+  setTimeout(() => {
+    mapAlertOverlay.classList.remove('active');
+  }, 3500 + Math.random() * 1500);
+}
+
+// First alert after 5s, then random intervals 8-20s
+setTimeout(triggerMapAlert, 5000);
+setInterval(() => {
+  triggerMapAlert();
+}, 8000 + Math.random() * 12000);
+
+// Additional random interval for variety
+setInterval(() => {
+  if (Math.random() > 0.5) triggerMapAlert();
+}, 15000);
+
+// ============= WEB AUDIO SYNTH =============
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playTone(freq, duration, type='sine', vol=0.15) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playNoise(duration, vol=0.08) {
+  const bufSize = audioCtx.sampleRate * duration;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2000;
+  filter.Q.value = 0.5;
+  src.buffer = buf;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start();
+}
+
+// Sound presets
+const sfx = {
+  alert: () => {
+    playTone(880, 0.12, 'square', 0.12);
+    setTimeout(() => playTone(660, 0.12, 'square', 0.12), 130);
+    setTimeout(() => playTone(880, 0.12, 'square', 0.12), 260);
+    setTimeout(() => playTone(660, 0.15, 'square', 0.10), 390);
+  },
+  scan: () => {
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => playTone(1200 + i * 200, 0.08, 'sine', 0.06), i * 60);
+    }
+  },
+  explosion: () => {
+    playNoise(1.2, 0.2);
+    playTone(60, 0.8, 'sine', 0.2);
+    setTimeout(() => playTone(40, 0.6, 'sine', 0.15), 100);
+    setTimeout(() => playNoise(0.6, 0.1), 200);
+  },
+  dataStream: () => {
+    for (let i = 0; i < 12; i++) {
+      setTimeout(() => playTone(2000 + Math.random() * 2000, 0.04, 'sine', 0.04), i * 40);
+    }
+  },
+  lockOn: () => {
+    playTone(400, 0.15, 'sine', 0.1);
+    setTimeout(() => playTone(600, 0.15, 'sine', 0.1), 150);
+    setTimeout(() => playTone(800, 0.3, 'sine', 0.15), 300);
+    setTimeout(() => playTone(800, 0.1, 'square', 0.05), 600);
+  },
+  comms: () => {
+    playNoise(0.08, 0.06);
+    setTimeout(() => {
+      playTone(300, 0.06, 'sine', 0.08);
+      playTone(450, 0.06, 'sine', 0.06);
+    }, 80);
+    setTimeout(() => playNoise(0.05, 0.04), 200);
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => playTone(350 + Math.random()*100, 0.05, 'sine', 0.05), 250 + i*60);
+    }
+  },
+  breach: () => {
+    for (let i = 0; i < 8; i++) {
+      setTimeout(() => {
+        playTone(200 + Math.random()*100, 0.1, 'sawtooth', 0.08);
+      }, i * 100);
+    }
+    setTimeout(() => playTone(150, 0.5, 'square', 0.1), 0);
+  },
+  satellite: () => {
+    playTone(1800, 0.6, 'sine', 0.06);
+    setTimeout(() => playTone(2200, 0.5, 'sine', 0.06), 200);
+    setTimeout(() => playTone(1400, 0.8, 'sine', 0.05), 500);
+    for (let i = 0; i < 4; i++) {
+      setTimeout(() => playTone(3000 + i*500, 0.03, 'sine', 0.03), 100 + i*150);
+    }
+  },
+  countdown: () => {
+    playTone(1000, 0.08, 'square', 0.15);
+  },
+  confirm: () => {
+    playTone(523, 0.1, 'sine', 0.1);
+    setTimeout(() => playTone(659, 0.1, 'sine', 0.1), 100);
+    setTimeout(() => playTone(784, 0.2, 'sine', 0.12), 200);
+  },
+};
+
+// ============= KEYBOARD TRIGGERS =============
+const keyActions = {
+  '1': {
+    name: 'RED ALERT',
+    action: () => {
+      sfx.alert();
+      triggerMapAlert();
+      // Flash red border on entire screen
+      document.body.style.boxShadow = 'inset 0 0 80px rgba(255,0,0,0.3)';
+      setTimeout(() => document.body.style.boxShadow = 'none', 2000);
+    }
+  },
+  '2': {
+    name: 'EXPLOSION',
+    action: () => {
+      sfx.explosion();
+      // Spawn explosion event at random location
+      const loc = eventLocations[Math.floor(Math.random() * eventLocations.length)];
+      mapEvents.push({
+        type: 'detonation', color: [255,100,30], label: '💥 EXPLOSION CONFIRMED',
+        duration: 400, icon: 'explosion',
+        x: loc.x, y: loc.y, name: loc.name,
+        age: 0, maxAge: 400, ringPhase: 0,
+      });
+      // Screen shake
+      document.body.style.transform = 'translate(3px, -2px)';
+      setTimeout(() => document.body.style.transform = 'translate(-3px, 2px)', 50);
+      setTimeout(() => document.body.style.transform = 'translate(2px, 3px)', 100);
+      setTimeout(() => document.body.style.transform = 'translate(-1px, -1px)', 150);
+      setTimeout(() => document.body.style.transform = 'none', 200);
+      // Flash
+      screenFlash.classList.remove('active');
+      void screenFlash.offsetWidth;
+      screenFlash.style.background = 'rgba(255,120,30,0.12)';
+      screenFlash.classList.add('active');
+      setTimeout(() => screenFlash.style.background = 'rgba(255,30,30,0.06)', 800);
+    }
+  },
+  '3': {
+    name: 'TARGET LOCK',
+    action: () => {
+      sfx.lockOn();
+      // Move PAPA to a new target
+      moveAgentPapa();
+      // Show target acquired alert
+      mapAlertTitle.textContent = '🎯 TARGET ACQUIRED';
+      mapAlertDetail.textContent = 'FACIAL RECOGNITION MATCH — 94.7% CONFIDENCE';
+      mapAlertOverlay.classList.add('active');
+      setTimeout(() => mapAlertOverlay.classList.remove('active'), 3000);
+    }
+  },
+  '4': {
+    name: 'INCOMING COMMS',
+    action: () => {
+      sfx.comms();
+      // Add urgent comms
+      const urgentMsgs = [
+        { src: 'PAPA', msg: 'I have the target in sight. Requesting green light.' },
+        { src: 'DIRECTOR', msg: 'All stations — PRIORITY ONE — WEAPONS FREE.' },
+        { src: 'TECHOPS', msg: 'Papa, get out now. They know you\'re there.' },
+        { src: 'DISPATCH', msg: 'Extraction team en route. Hold your position.' },
+        { src: '004', msg: 'MAYDAY MAYDAY — position compromised. Going dark.' },
+      ];
+      const msg = urgentMsgs[Math.floor(Math.random() * urgentMsgs.length)];
+      const now = new Date();
+      const ts = now.toISOString().slice(11,19);
+      const line = document.createElement('div');
+      line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:#ff3d3d">★ ${msg.src}</span>: <span class="msg" style="color:#e8f0ff">${msg.msg}</span>`;
+      commsEl.appendChild(line);
+      while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
+      commsEl.scrollTop = commsEl.scrollHeight;
+    }
+  },
+  '5': {
+    name: 'DATA BURST',
+    action: () => {
+      sfx.dataStream();
+      // Spawn many data packets at once
+      for (let i = 0; i < 10; i++) {
+        setTimeout(() => spawnPacket(), i * 80);
+      }
+      // Add feed line
+      const burstLines = [
+        '<span class="alert">[FLASH]</span> ENCRYPTED DATA BURST — 47.3TB — DECRYPTING...',
+        '<span class="alert">[PRIORITY]</span> NINE EYES DATABASE ACCESSED — UNKNOWN ORIGIN',
+        '<span class="highlight">[SIGINT]</span> FULL SPECTRUM INTERCEPT INITIATED — ALL CHANNELS',
+      ];
+      const line = document.createElement('div');
+      const ts = new Date().toISOString().slice(11,19);
+      line.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${burstLines[Math.floor(Math.random()*burstLines.length)]}`;
+      feedEl.appendChild(line);
+      while (feedEl.children.length > 8) feedEl.removeChild(feedEl.firstChild);
+    }
+  },
+  '6': {
+    name: 'SECURITY BREACH',
+    action: () => {
+      sfx.breach();
+      mapAlertTitle.textContent = '🔴 SECURITY BREACH';
+      mapAlertDetail.textContent = 'PERIMETER COMPROMISED — ALL UNITS RESPOND';
+      mapAlertOverlay.classList.add('active');
+      // Red flash + border
+      document.body.style.boxShadow = 'inset 0 0 120px rgba(255,0,0,0.25)';
+      screenFlash.classList.remove('active');
+      void screenFlash.offsetWidth;
+      screenFlash.style.background = 'rgba(255,0,0,0.1)';
+      screenFlash.classList.add('active');
+      setTimeout(() => {
+        mapAlertOverlay.classList.remove('active');
+        document.body.style.boxShadow = 'none';
+        screenFlash.style.background = 'rgba(255,30,30,0.06)';
+      }, 4000);
+    }
+  },
+  '7': {
+    name: 'SATELLITE UPLINK',
+    action: () => {
+      sfx.satellite();
+      // Spawn events across the map
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          const loc = eventLocations[Math.floor(Math.random() * eventLocations.length)];
+          mapEvents.push({
+            type: 'intercept', color: [30,144,255], label: 'SAT SWEEP',
+            duration: 200, icon: 'intercept',
+            x: loc.x, y: loc.y, name: loc.name,
+            age: 0, maxAge: 200, ringPhase: 0,
+          });
+        }, i * 300);
+      }
+      mapAlertTitle.textContent = '📡 SATELLITE SWEEP';
+      mapAlertDetail.textContent = 'OVERWATCH-SAT-3 — FULL SPECTRUM SCAN INITIATED';
+      mapAlertOverlay.classList.add('active');
+      setTimeout(() => mapAlertOverlay.classList.remove('active'), 3000);
+    }
+  },
+  '8': {
+    name: 'EXTRACTION',
+    action: () => {
+      sfx.confirm();
+      mapAlertTitle.textContent = '🟢 EXTRACTION CONFIRMED';
+      mapAlertDetail.textContent = 'PAPA — HELICOPTER INBOUND — ETA 4 MINUTES';
+      mapAlertOverlay.classList.add('active');
+      document.body.style.boxShadow = 'inset 0 0 60px rgba(0,230,118,0.15)';
+      setTimeout(() => {
+        mapAlertOverlay.classList.remove('active');
+        document.body.style.boxShadow = 'none';
+      }, 3500);
+      // Green events
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          mapEvents.push({
+            type: 'extraction', color: [0,230,118], label: 'EXTRACTION ROUTE',
+            duration: 250, icon: 'extraction',
+            x: 0.48 + Math.random()*0.08, y: 0.20 + Math.random()*0.06, name: 'EN ROUTE',
+            age: 0, maxAge: 250, ringPhase: 0,
+          });
+        }, i * 500);
+      }
+    }
+  },
+  '9': {
+    name: 'COUNTDOWN',
+    action: () => {
+      let count = 10;
+      mapAlertTitle.textContent = `⏱ COUNTDOWN: ${count}`;
+      mapAlertDetail.textContent = 'DETONATION SEQUENCE INITIATED';
+      mapAlertOverlay.classList.add('active');
+      const interval = setInterval(() => {
+        count--;
+        sfx.countdown();
+        if (count > 0) {
+          mapAlertTitle.textContent = `⏱ COUNTDOWN: ${count}`;
+          if (count <= 3) {
+            mapAlertTitle.style.fontSize = '22px';
+            document.body.style.boxShadow = `inset 0 0 ${120-count*30}px rgba(255,0,0,${0.15+count*0.05})`;
+          }
+        } else {
+          clearInterval(interval);
+          mapAlertTitle.style.fontSize = '';
+          mapAlertTitle.textContent = '💥 DETONATION';
+          mapAlertDetail.textContent = '';
+          sfx.explosion();
+          // Big shake
+          document.body.style.transform = 'translate(5px, -4px)';
+          setTimeout(() => document.body.style.transform = 'translate(-5px, 4px)', 60);
+          setTimeout(() => document.body.style.transform = 'translate(4px, 3px)', 120);
+          setTimeout(() => document.body.style.transform = 'translate(-3px, -3px)', 180);
+          setTimeout(() => document.body.style.transform = 'translate(2px, 1px)', 240);
+          setTimeout(() => document.body.style.transform = 'none', 300);
+          screenFlash.style.background = 'rgba(255,200,50,0.2)';
+          screenFlash.classList.remove('active');
+          void screenFlash.offsetWidth;
+          screenFlash.classList.add('active');
+          setTimeout(() => {
+            mapAlertOverlay.classList.remove('active');
+            document.body.style.boxShadow = 'none';
+            screenFlash.style.background = 'rgba(255,30,30,0.06)';
+          }, 2000);
+        }
+      }, 1000);
+    }
+  },
+  '0': {
+    name: 'SYSTEM SCAN',
+    action: () => {
+      sfx.scan();
+      // Rapid feed lines
+      const scanLines = [
+        '<span class="info">[SYSTEM]</span> Initiating full diagnostic...',
+        '<span class="info">[SYSTEM]</span> Network nodes: 47/47 ● ONLINE',
+        '<span class="info">[SYSTEM]</span> Encryption: AES-256-GCM ● VERIFIED',
+        '<span class="highlight">[SYSTEM]</span> Satellite link: OVERWATCH-3 ● LOCKED',
+        '<span class="highlight">[SYSTEM]</span> Field agents: 9 ACTIVE / 2 DARK / 1 OFFLINE',
+        '<span class="highlight">[SYSTEM]</span> All systems nominal ● ARGUS OPERATIONAL',
+      ];
+      scanLines.forEach((line, i) => {
+        setTimeout(() => {
+          const el = document.createElement('div');
+          const ts = new Date().toISOString().slice(11,19);
+          el.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${line}`;
+          feedEl.appendChild(el);
+          while (feedEl.children.length > 8) feedEl.removeChild(feedEl.firstChild);
+          sfx.countdown();
+        }, i * 400);
+      });
+    }
+  },
+};
+
+// Key hint overlay (shown briefly)
+const keyHintDiv = document.createElement('div');
+keyHintDiv.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);font-family:"Orbitron",sans-serif;font-size:12px;letter-spacing:2px;color:rgba(30,144,255,0.8);z-index:10001;pointer-events:none;opacity:0;transition:opacity 0.3s;text-align:center;background:rgba(6,10,16,0.9);padding:8px 20px;border:1px solid rgba(30,144,255,0.3);';
+document.body.appendChild(keyHintDiv);
+
+// ============= CHAT INPUT =============
+const commsInput = document.getElementById('commsInput');
+
+// Auto-focus input when clicking anywhere (except the input itself loses focus issue)
+document.addEventListener('click', () => {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  commsInput.focus();
+});
+
+// Keep cursor visible
+commsInput.focus();
+
+// Send message on Enter
+commsInput.addEventListener('keydown', (e) => {
+  // Small keystroke tick on every key
+  if (e.key.length === 1) {
+    playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
+  }
+
+  if (e.key === 'Enter' && commsInput.value.trim()) {
+    e.preventDefault();
+    const msg = commsInput.value.trim();
+    commsInput.value = '';
+    
+    // Add to comms log
+    const now = new Date();
+    const ts = now.toISOString().slice(11,19);
+    const line = document.createElement('div');
+    line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:var(--green)">OPERATOR</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(msg)}</span>`;
+    commsEl.appendChild(line);
+    while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
+    commsEl.scrollTop = commsEl.scrollHeight;
+
+    // Send sound
+    playTone(800, 0.06, 'sine', 0.08);
+    setTimeout(() => playTone(1200, 0.08, 'sine', 0.06), 60);
+
+    // Auto-reply after 1.5-4s
+    setTimeout(() => {
+      const replies = [
+        { src: 'TECHOPS', msg: 'Copy that. Processing your request.' },
+        { src: 'DIRECTOR', msg: 'Acknowledged. Proceed with caution.' },
+        { src: 'DISPATCH', msg: 'Message relayed to all field stations.' },
+        { src: 'TECHOPS', msg: 'Understood. Updating ARGUS database.' },
+        { src: 'DIRECTOR', msg: 'Noted. Keep this channel secure.' },
+        { src: 'PAPA', msg: 'Received. Maintaining radio silence.' },
+        { src: 'STATION-V', msg: 'Confirmed. Adjusting operational parameters.' },
+        { src: 'TECHOPS', msg: 'Running analysis now. Stand by for results.' },
+        { src: 'DIRECTOR', msg: 'Very well. I\'ll brief the minister.' },
+        { src: 'DISPATCH', msg: 'Filed under Priority Alpha. Eyes only.' },
+      ];
+      const reply = replies[Math.floor(Math.random() * replies.length)];
+      const rts = new Date().toISOString().slice(11,19);
+      const rline = document.createElement('div');
+      rline.innerHTML = `<span class="ts">${rts}</span> <span class="src">${reply.src}</span>: <span class="msg">${reply.msg}</span>`;
+      commsEl.appendChild(rline);
+      while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
+      commsEl.scrollTop = commsEl.scrollHeight;
+      sfx.comms();
+    }, 1500 + Math.random() * 2500);
+  }
+});
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ============= CTRL + NUMBER TRIGGERS =============
+document.addEventListener('keydown', (e) => {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  // Only fire triggers on Ctrl + number
+  if (e.ctrlKey && keyActions[e.key]) {
+    e.preventDefault();
+    const action = keyActions[e.key];
+    action.action();
+    keyHintDiv.textContent = `[Ctrl+${e.key}] ${action.name}`;
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+  }
+});
+</script>
+</body>
+</html>
