@@ -286,13 +286,18 @@
 
   .data-feed {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px 14px;
     font-family: 'Share Tech Mono', monospace;
     font-size: 11px;
     line-height: 1.7;
     color: var(--text-dim);
   }
+
+  .data-feed::-webkit-scrollbar { width: 3px; }
+  .data-feed::-webkit-scrollbar-track { background: transparent; }
+  .data-feed::-webkit-scrollbar-thumb { background: var(--border-bright); }
 
   .data-feed .highlight { color: var(--green); }
   .data-feed .warn { color: var(--amber); }
@@ -643,13 +648,12 @@
         </div>
       </div>
     </div>
-    <!-- Data feed + Comms input -->
+    <!-- Encrypted Comms + Input -->
     <div class="center-bottom">
       <div class="data-header">
-        <span>SIGINT INTERCEPT LOG</span>
-        <span style="color:var(--green)">■ STREAM ACTIVE</span>
+        <span style="color:var(--amber)">● ENCRYPTED COMMS</span>
       </div>
-      <div class="data-feed" id="dataFeed"></div>
+      <div class="comms-log" id="commsLog"></div>
       <div class="comms-input-wrap">
         <span class="comms-input-prefix">OPERATOR &gt;</span>
         <input type="text" id="commsInput" class="comms-input" autocomplete="off" spellcheck="false" placeholder="Type anything — auto-fill active  [/help]" />
@@ -679,10 +683,10 @@
     </div>
     <div class="comms-section">
       <div class="panel-header">
-        <span class="indicator" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span>
-        ENCRYPTED COMMS
+        <span class="indicator" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span>
+        SIGINT INTERCEPT LOG
       </div>
-      <div class="comms-log" id="commsLog"></div>
+      <div class="data-feed" id="dataFeed"></div>
     </div>
     <div class="signal-section">
       <canvas id="signalCanvas"></canvas>
@@ -703,16 +707,19 @@
 <div class="cmd-hint-overlay" id="cmdHint">
   <div class="cmd-hint-title">OPERATOR COMMANDS</div>
   <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto</span><span class="cmd-desc">Toggle auto-type mode</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/3</span><span class="cmd-desc">Target lock</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/4</span><span class="cmd-desc">Incoming comms</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/5</span><span class="cmd-desc">Data burst</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/6</span><span class="cmd-desc">Security breach</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/7</span><span class="cmd-desc">Satellite uplink</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/8</span><span class="cmd-desc">Extraction</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/9</span><span class="cmd-desc">Countdown</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/0</span><span class="cmd-desc">System scan</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/event</span><span class="cmd-desc">Toggle auto events</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/mute</span><span class="cmd-desc">Toggle audio</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/name</span><span class="cmd-desc">Set callsign (/name PAPA)</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert <span style="opacity:0.4">(Ctrl+1)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion <span style="opacity:0.4">(Ctrl+2)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/3</span><span class="cmd-desc">Target lock <span style="opacity:0.4">(Ctrl+3)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/4</span><span class="cmd-desc">Incoming comms <span style="opacity:0.4">(Ctrl+4)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/5</span><span class="cmd-desc">Data burst <span style="opacity:0.4">(Ctrl+5)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/6</span><span class="cmd-desc">Security breach <span style="opacity:0.4">(Ctrl+6)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/7</span><span class="cmd-desc">Satellite uplink <span style="opacity:0.4">(Ctrl+7)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/8</span><span class="cmd-desc">Extraction <span style="opacity:0.4">(Ctrl+8)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/9</span><span class="cmd-desc">Countdown <span style="opacity:0.4">(Ctrl+9)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/0</span><span class="cmd-desc">System scan <span style="opacity:0.4">(Ctrl+0)</span></span></div>
 </div>
 
 <script>
@@ -1515,22 +1522,33 @@ const feedLines = [
 
 let feedIdx = 0;
 function addFeedLine() {
-  const line = document.createElement('div');
-  const now = new Date();
-  const ts = now.toISOString().slice(11,19);
-  line.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${feedLines[feedIdx % feedLines.length]}`;
-  feedEl.appendChild(line);
+  pushFeed(feedLines[feedIdx % feedLines.length]);
   feedIdx++;
-  
-  // Keep last ~8 lines
-  while (feedEl.children.length > 8) {
+}
+
+// Universal helper: push any HTML line to the SIGINT feed
+function pushFeed(html) {
+  const line = document.createElement('div');
+  const ts = new Date().toISOString().slice(11,19);
+  line.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${html}`;
+  feedEl.appendChild(line);
+  while (feedEl.children.length > 20) {
     feedEl.removeChild(feedEl.firstChild);
   }
+  feedEl.scrollTop = feedEl.scrollHeight;
 }
 
 // Initial fill
 for (let i = 0; i < 6; i++) addFeedLine();
 setInterval(addFeedLine, 3500);
+
+// Capture JS errors into feed
+window.onerror = (msg, src, line) => {
+  pushFeed(`<span class="alert">[SYS-ERROR]</span> ${msg} — L${line}`);
+};
+window.addEventListener('unhandledrejection', (e) => {
+  pushFeed(`<span class="alert">[SYS-ERROR]</span> ${e.reason}`);
+});
 
 // ============= COMMS LOG =============
 const commsEl = document.getElementById('commsLog');
@@ -1620,21 +1638,26 @@ function triggerMapAlert() {
   }, 3500 + Math.random() * 1500);
 }
 
+// Auto events toggle
+let autoEventsEnabled = true;
+
 // First alert after 5s, then random intervals 8-20s
-setTimeout(triggerMapAlert, 5000);
+setTimeout(() => { if (autoEventsEnabled) triggerMapAlert(); }, 5000);
 setInterval(() => {
-  triggerMapAlert();
+  if (autoEventsEnabled) triggerMapAlert();
 }, 8000 + Math.random() * 12000);
 
-// Additional random interval for variety
 setInterval(() => {
-  if (Math.random() > 0.5) triggerMapAlert();
+  if (autoEventsEnabled && Math.random() > 0.5) triggerMapAlert();
 }, 15000);
 
 // ============= WEB AUDIO SYNTH =============
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+let isMuted = false;
+
 function playTone(freq, duration, type='sine', vol=0.15) {
+  if (isMuted) return;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = type;
@@ -1648,6 +1671,7 @@ function playTone(freq, duration, type='sine', vol=0.15) {
 }
 
 function playNoise(duration, vol=0.08) {
+  if (isMuted) return;
   const bufSize = audioCtx.sampleRate * duration;
   const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   const data = buf.getChannelData(0);
@@ -1741,16 +1765,15 @@ const keyActions = {
     action: () => {
       sfx.alert();
       triggerMapAlert();
-      // Flash red border on entire screen
       document.body.style.boxShadow = 'inset 0 0 80px rgba(255,0,0,0.3)';
       setTimeout(() => document.body.style.boxShadow = 'none', 2000);
+      pushFeed('<span class="alert">[RED ALERT]</span> Priority threat detected — All stations on high alert');
     }
   },
   '2': {
     name: 'EXPLOSION',
     action: () => {
       sfx.explosion();
-      // Spawn explosion event at random location
       const loc = eventLocations[Math.floor(Math.random() * eventLocations.length)];
       mapEvents.push({
         type: 'detonation', color: [255,100,30], label: '💥 EXPLOSION CONFIRMED',
@@ -1758,31 +1781,29 @@ const keyActions = {
         x: loc.x, y: loc.y, name: loc.name,
         age: 0, maxAge: 400, ringPhase: 0,
       });
-      // Screen shake
       document.body.style.transform = 'translate(3px, -2px)';
       setTimeout(() => document.body.style.transform = 'translate(-3px, 2px)', 50);
       setTimeout(() => document.body.style.transform = 'translate(2px, 3px)', 100);
       setTimeout(() => document.body.style.transform = 'translate(-1px, -1px)', 150);
       setTimeout(() => document.body.style.transform = 'none', 200);
-      // Flash
       screenFlash.classList.remove('active');
       void screenFlash.offsetWidth;
       screenFlash.style.background = 'rgba(255,120,30,0.12)';
       screenFlash.classList.add('active');
       setTimeout(() => screenFlash.style.background = 'rgba(255,30,30,0.06)', 800);
+      pushFeed(`<span class="alert">[DETONATION]</span> Explosion confirmed at ${loc.name} — Damage assessment pending`);
     }
   },
   '3': {
     name: 'TARGET LOCK',
     action: () => {
       sfx.lockOn();
-      // Move PAPA to a new target
       moveAgentPapa();
-      // Show target acquired alert
       mapAlertTitle.textContent = '🎯 TARGET ACQUIRED';
       mapAlertDetail.textContent = 'FACIAL RECOGNITION MATCH — 94.7% CONFIDENCE';
       mapAlertOverlay.classList.add('active');
       setTimeout(() => mapAlertOverlay.classList.remove('active'), 3000);
+      pushFeed('<span class="warn">[TARGET-LOCK]</span> Facial recognition match 94.7% — Target acquired');
     }
   },
   '4': {
@@ -1805,6 +1826,7 @@ const keyActions = {
       commsEl.appendChild(line);
       while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
       commsEl.scrollTop = commsEl.scrollHeight;
+      pushFeed(`<span class="warn">[COMMS]</span> Priority transmission received from ${msg.src}`);
     }
   },
   '5': {
@@ -1815,17 +1837,12 @@ const keyActions = {
       for (let i = 0; i < 10; i++) {
         setTimeout(() => spawnPacket(), i * 80);
       }
-      // Add feed line
       const burstLines = [
         '<span class="alert">[FLASH]</span> ENCRYPTED DATA BURST — 47.3TB — DECRYPTING...',
         '<span class="alert">[PRIORITY]</span> NINE EYES DATABASE ACCESSED — UNKNOWN ORIGIN',
         '<span class="highlight">[SIGINT]</span> FULL SPECTRUM INTERCEPT INITIATED — ALL CHANNELS',
       ];
-      const line = document.createElement('div');
-      const ts = new Date().toISOString().slice(11,19);
-      line.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${burstLines[Math.floor(Math.random()*burstLines.length)]}`;
-      feedEl.appendChild(line);
-      while (feedEl.children.length > 8) feedEl.removeChild(feedEl.firstChild);
+      pushFeed(burstLines[Math.floor(Math.random()*burstLines.length)]);
     }
   },
   '6': {
@@ -1835,7 +1852,6 @@ const keyActions = {
       mapAlertTitle.textContent = '🔴 SECURITY BREACH';
       mapAlertDetail.textContent = 'PERIMETER COMPROMISED — ALL UNITS RESPOND';
       mapAlertOverlay.classList.add('active');
-      // Red flash + border
       document.body.style.boxShadow = 'inset 0 0 120px rgba(255,0,0,0.25)';
       screenFlash.classList.remove('active');
       void screenFlash.offsetWidth;
@@ -1846,6 +1862,7 @@ const keyActions = {
         document.body.style.boxShadow = 'none';
         screenFlash.style.background = 'rgba(255,30,30,0.06)';
       }, 4000);
+      pushFeed('<span class="alert">[BREACH]</span> Security perimeter compromised — Countermeasures engaged');
     }
   },
   '7': {
@@ -1868,6 +1885,7 @@ const keyActions = {
       mapAlertDetail.textContent = 'OVERWATCH-SAT-3 — FULL SPECTRUM SCAN INITIATED';
       mapAlertOverlay.classList.add('active');
       setTimeout(() => mapAlertOverlay.classList.remove('active'), 3000);
+      pushFeed('<span class="info">[SAT-UPLINK]</span> OVERWATCH-SAT-3 full spectrum scan initiated');
     }
   },
   '8': {
@@ -1882,7 +1900,7 @@ const keyActions = {
         mapAlertOverlay.classList.remove('active');
         document.body.style.boxShadow = 'none';
       }, 3500);
-      // Green events
+      pushFeed('<span class="highlight">[EXTRACTION]</span> Helicopter inbound — PAPA extraction confirmed');
       for (let i = 0; i < 3; i++) {
         setTimeout(() => {
           mapEvents.push({
@@ -1902,6 +1920,7 @@ const keyActions = {
       mapAlertTitle.textContent = `⏱ COUNTDOWN: ${count}`;
       mapAlertDetail.textContent = 'DETONATION SEQUENCE INITIATED';
       mapAlertOverlay.classList.add('active');
+      pushFeed('<span class="alert">[COUNTDOWN]</span> Detonation sequence initiated — T-10 seconds');
       const interval = setInterval(() => {
         count--;
         sfx.countdown();
@@ -1952,11 +1971,7 @@ const keyActions = {
       ];
       scanLines.forEach((line, i) => {
         setTimeout(() => {
-          const el = document.createElement('div');
-          const ts = new Date().toISOString().slice(11,19);
-          el.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${line}`;
-          feedEl.appendChild(el);
-          while (feedEl.children.length > 8) feedEl.removeChild(feedEl.firstChild);
+          pushFeed(line);
           sfx.countdown();
         }, i * 400);
       });
@@ -2118,10 +2133,12 @@ const replyPool = [
   { src: 'PAPA', msg: 'Copy. Going dark for 20 minutes.' },
 ];
 
+let operatorName = 'OPERATOR';
+
 function sendOperatorMsg(msg) {
   const ts = new Date().toISOString().slice(11,19);
   const line = document.createElement('div');
-  line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:var(--green)">OPERATOR</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(msg)}</span>`;
+  line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:var(--green)">${escapeHtml(operatorName)}</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(msg)}</span>`;
   commsEl.appendChild(line);
   while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
   commsEl.scrollTop = commsEl.scrollHeight;
@@ -2166,6 +2183,39 @@ function handleSlashCommand(cmd) {
 
   if (cmd === '/auto') {
     setAutoType(!autoTypeEnabled);
+    return true;
+  }
+
+  if (cmd === '/event') {
+    autoEventsEnabled = !autoEventsEnabled;
+    keyHintDiv.textContent = autoEventsEnabled ? 'AUTO EVENTS ON' : 'AUTO EVENTS OFF';
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+    pushFeed(autoEventsEnabled
+      ? '<span class="highlight">[SYSTEM]</span> Auto events ENABLED'
+      : '<span class="warn">[SYSTEM]</span> Auto events DISABLED');
+    return true;
+  }
+
+  if (cmd === '/mute') {
+    isMuted = !isMuted;
+    keyHintDiv.textContent = isMuted ? 'AUDIO MUTED' : 'AUDIO ON';
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+    return true;
+  }
+
+  // /name <nickname>
+  const nameMatch = cmd.match(/^\/name\s+(.+)$/i);
+  if (nameMatch) {
+    operatorName = nameMatch[1].trim().toUpperCase();
+    document.querySelector('.comms-input-prefix').textContent = operatorName + ' >';
+    keyHintDiv.textContent = `CALLSIGN: ${operatorName}`;
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
     return true;
   }
 
