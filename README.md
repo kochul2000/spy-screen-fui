@@ -4,6 +4,9 @@
 
 A fictional intelligence agency surveillance screen built as a FUI (Fantasy User Interface).
 
+아이나 조카에게 보여주면 스파이 놀이하기 딱 좋습니다.
+Great for playing spy with kids and nephews.
+
 ## Demo
 
 **https://kochul2000.github.io/spy-screen-fui/**
@@ -38,3 +41,7 @@ python3 -m http.server 8000
 ## GitHub
 
 **https://github.com/kochul2000/spy-screen-fui**
+
+## License
+
+MIT
