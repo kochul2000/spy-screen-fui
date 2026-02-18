@@ -42,7 +42,7 @@
   /* Show cursor only on input */
   .comms-input { cursor: text !important; }
 
-  /* Scanlines */
+  /* Scanlines — will-change promotes to own compositing layer (GPU) */
   body::before {
     content: '';
     position: fixed;
@@ -50,6 +50,7 @@
     background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(30,144,255,0.015) 2px, rgba(30,144,255,0.015) 4px);
     pointer-events: none;
     z-index: 9999;
+    will-change: transform;
   }
 
   /* Vignette */
@@ -60,6 +61,7 @@
     background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.5) 100%);
     pointer-events: none;
     z-index: 9998;
+    will-change: transform;
   }
 
   /* TOP BAR */
@@ -143,7 +145,9 @@
     transition: background 0.3s;
   }
 
-  .agent-item:nth-child(3) { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+  .agent-item.agent-focus { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+  .agent-item.agent-linked .status-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .agent-item.agent-linked .agent-code { color: var(--accent); }
 
   .agent-item .status-dot {
     width: 7px; height: 7px;
@@ -171,7 +175,7 @@
   .center-top {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr clamp(200px, 35%, 500px);
     gap: 1px;
     min-height: 0;
   }
@@ -265,7 +269,7 @@
 
   /* Center bottom data feed */
   .center-bottom {
-    height: 180px;
+    height: 300px;
     border-top: 1px solid var(--border);
     background: var(--panel);
     display: flex;
@@ -593,14 +597,69 @@
   .cmd-hint-item .cmd-desc { color: var(--text); }
   .cmd-hint-item.active-cmd { background: var(--accent-dim); }
   .cmd-hint-item.active-cmd .cmd-key { color: var(--amber); }
+  .cmd-hint-item.cmd-selected { background: rgba(30,144,255,0.12); }
+  .cmd-hint-item.cmd-selected .cmd-key { color: var(--text-bright); }
 
   @keyframes screenFlash {
     0% { opacity: 1; }
     100% { opacity: 0; }
   }
+
+  /* Peer confirm overlay */
+  .peer-confirm {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    background: rgba(0,0,0,0.6);
+  }
+  .peer-confirm-box {
+    border: 2px solid var(--amber);
+    background: rgba(6,10,16,0.95);
+    padding: 20px 40px;
+    text-align: center;
+    animation: alertPulse 0.6s infinite;
+    border-color: var(--amber);
+  }
+  .peer-confirm-box .pc-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--amber);
+    letter-spacing: 3px;
+    margin-bottom: 8px;
+  }
+  .peer-confirm-box .pc-id {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px;
+    color: var(--text-bright);
+    letter-spacing: 4px;
+    margin-bottom: 16px;
+  }
+  .peer-confirm-box .pc-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+  .peer-confirm-box .pc-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 8px 24px;
+    border: 1px solid;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .pc-btn.accept { color: var(--green); border-color: var(--green); }
+  .pc-btn.accept:hover { background: var(--green-dim); }
+  .pc-btn.reject { color: var(--red); border-color: var(--red); }
+  .pc-btn.reject:hover { background: var(--red-dim); }
 </style>
 </head>
-<body onclick="document.documentElement.requestFullscreen()">
+<body>
 
 <!-- TOP CLASSIFICATION BAR -->
 <div class="top-bar">
@@ -698,20 +757,40 @@
 <!-- BOTTOM BAR -->
 <div class="bottom-bar">
   <div><span class="net-status">● NETWORK SECURE</span> &nbsp; AES-256-GCM &nbsp; <span class="encryption">ENCRYPTION LEVEL 5</span></div>
-  <div>UPLINK: OVERWATCH-SAT-3 // LATENCY 12ms // BANDWIDTH 94.7%</div>
+  <div id="peerStatus"><span style="color:var(--text-dim)">○ LINK OFF</span></div>
   <div class="clock" id="clock"></div>
 </div>
 
-<div class="fullscreen-hint">CLICK ANYWHERE FOR FULLSCREEN</div>
+<div class="fullscreen-hint">F11 FOR FULLSCREEN</div>
 <div class="screen-flash" id="screenFlash"></div>
+<div class="peer-confirm" id="peerConfirmOverlay" onclick="event.stopPropagation()">
+  <div class="peer-confirm-box">
+    <div class="pc-title">⚡ INCOMING CONNECTION</div>
+    <div class="pc-id">PEER: <span id="peerConfirmId">------</span></div>
+    <div class="pc-buttons">
+      <button class="pc-btn accept" id="peerAcceptBtn">ACCEPT</button>
+      <button class="pc-btn reject" id="peerRejectBtn">REJECT</button>
+    </div>
+  </div>
+</div>
+<div class="peer-confirm" id="roomCodeOverlay" onclick="event.stopPropagation()">
+  <div class="peer-confirm-box" style="border-color:var(--green)">
+    <div class="pc-title" style="color:var(--green)">LINK ACTIVE</div>
+    <div class="pc-id">ROOM: <span id="roomCodeDisplay" style="color:var(--amber)">------</span></div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);margin-bottom:14px;letter-spacing:1px">Share this code with your peer</div>
+    <div class="pc-buttons">
+      <button class="pc-btn accept" id="roomCodeOkBtn">CONFIRM</button>
+    </div>
+  </div>
+</div>
 <div class="cmd-hint-overlay" id="cmdHint">
   <div class="cmd-hint-title">OPERATOR COMMANDS</div>
-  <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto</span><span class="cmd-desc">Toggle auto-type <span style="opacity:0.4">on / off</span></span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/event</span><span class="cmd-desc">Toggle auto events <span style="opacity:0.4">on / off</span></span></div>
+  <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto-type</span><span class="cmd-desc">Toggle auto-type <span style="opacity:0.4">on / off</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/auto-event</span><span class="cmd-desc">Toggle auto events <span style="opacity:0.4">on / off</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/sound</span><span class="cmd-desc">Toggle audio <span style="opacity:0.4">on / off</span></span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/comms</span><span class="cmd-desc">Toggle dummy comms <span style="opacity:0.4">on / off</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/auto-comms</span><span class="cmd-desc">Toggle dummy comms <span style="opacity:0.4">on / off</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/name</span><span class="cmd-desc">Set callsign (/name PAPA)</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert <span style="opacity:0.4">(Ctrl+1)</span></span></div>
+  <div class="cmd-hint-item" style="border-top:1px solid rgba(30,144,255,0.15)"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert <span style="opacity:0.4">(Ctrl+1)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion <span style="opacity:0.4">(Ctrl+2)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/3</span><span class="cmd-desc">Target lock <span style="opacity:0.4">(Ctrl+3)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/4</span><span class="cmd-desc">Incoming comms <span style="opacity:0.4">(Ctrl+4)</span></span></div>
@@ -721,8 +800,11 @@
   <div class="cmd-hint-item"><span class="cmd-key">/8</span><span class="cmd-desc">Extraction <span style="opacity:0.4">(Ctrl+8)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/9</span><span class="cmd-desc">Countdown <span style="opacity:0.4">(Ctrl+9)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/0</span><span class="cmd-desc">System scan <span style="opacity:0.4">(Ctrl+0)</span></span></div>
+  <div class="cmd-hint-item" style="border-top:1px solid rgba(30,144,255,0.15)"><span class="cmd-key">/link</span><span class="cmd-desc">P2P on·off·connect (/link 774219)</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/link-slot</span><span class="cmd-desc">Set max peers (/link-slot 2)</span></div>
 </div>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 // ============= CLOCK =============
 function updateClock() {
@@ -737,33 +819,72 @@ updateClock();
 
 // ============= AGENTS =============
 const agents = [
-  { code: '001', name: 'AEGIS', loc: 'BERLIN, DE', status: 'active', role: 'FIELD OPS' },
-  { code: '003', name: 'COBRA', loc: 'KARACHI, PK', status: 'standby', role: 'INTEL' },
+  { code: '001', name: 'AEGIS', loc: 'BERLIN, DE', status: 'active', role: 'FIELD OPS', x: 0.50, y: 0.20 },
+  { code: '003', name: 'COBRA', loc: 'KARACHI, PK', status: 'standby', role: 'INTEL', x: 0.61, y: 0.28 },
   { code: 'PP', name: 'PAPA', loc: 'VIENNA, AT', status: 'active', role: 'FIELD OPS' },
   { code: '008', name: 'ARGENT', loc: 'UNKNOWN', status: 'dark', role: 'DEEP COVER' },
-  { code: '004', name: 'FALCON', loc: 'TANGIER, MA', status: 'active', role: 'SURVEILLANCE' },
-  { code: '009', name: 'SPECTRE', loc: 'MACAU, CN', status: 'active', role: 'FIELD OPS' },
-  { code: '002', name: 'PHOENIX', loc: 'ISTANBUL, TR', status: 'standby', role: 'EXTRACTION' },
+  { code: '004', name: 'FALCON', loc: 'TANGIER, MA', status: 'active', role: 'SURVEILLANCE', x: 0.46, y: 0.30 },
+  { code: '009', name: 'SPECTRE', loc: 'MACAU, CN', status: 'active', role: 'FIELD OPS', x: 0.78, y: 0.28 },
+  { code: '002', name: 'PHOENIX', loc: 'ISTANBUL, TR', status: 'standby', role: 'EXTRACTION', x: 0.52, y: 0.22 },
   { code: '006', name: 'TREVELYAN', loc: 'SIGNAL LOST', status: 'dark', role: 'UNKNOWN' },
-  { code: '005', name: 'RAVEN', loc: 'MOSCOW, RU', status: 'active', role: 'INTEL' },
-  { code: '0011', name: 'GHOST', loc: 'PYONGYANG, KP', status: 'offline', role: 'DEEP COVER' },
-  { code: '0012', name: 'ORACLE', loc: 'LANGLEY, US', status: 'active', role: 'ANALYST' },
-  { code: '0010', name: 'SHADOW', loc: 'TEHRAN, IR', status: 'standby', role: 'INTEL' },
+  { code: '005', name: 'RAVEN', loc: 'MOSCOW, RU', status: 'active', role: 'INTEL', x: 0.58, y: 0.20 },
+  { code: '0011', name: 'GHOST', loc: 'PYONGYANG, KP', status: 'offline', role: 'DEEP COVER', x: 0.74, y: 0.22 },
+  { code: '0012', name: 'ORACLE', loc: 'LANGLEY, US', status: 'active', role: 'ANALYST', x: 0.24, y: 0.28, hq: true },
+  { code: '0010', name: 'SHADOW', loc: 'TEHRAN, IR', status: 'standby', role: 'INTEL', x: 0.59, y: 0.27 },
+];
+
+const satellites = [
+  { id: 'OVERWATCH-3', incl: 0.35, period: 108000, phase: 0,    color: [100,200,255] },
+  { id: 'KEYHOLE-9',   incl: 0.20, period: 144000, phase: 1.2,  color: [255,180,60]  },
+  { id: 'SIGINT-7',    incl: 0.28, period: 90000,  phase: 2.8,  color: [180,255,120] },
 ];
 
 const agentListEl = document.getElementById('agentList');
-agents.forEach(a => {
-  const div = document.createElement('div');
-  div.className = 'agent-item';
-  div.innerHTML = `
-    <div class="status-dot status-${a.status}"></div>
-    <div class="agent-info">
-      <div class="agent-code">${a.code} — ${a.name}</div>
-      <div class="agent-loc">${a.loc}</div>
-    </div>
-  `;
-  agentListEl.appendChild(div);
-});
+
+function renderAgentList() {
+  agentListEl.innerHTML = '';
+  agents.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'agent-item' + (a.linked ? ' agent-linked' : '');
+    div.dataset.agentName = a.name;
+    div.innerHTML = `
+      <div class="status-dot status-${a.linked ? 'active' : a.status}"></div>
+      <div class="agent-info">
+        <div class="agent-code">${a.code} — ${a.name}</div>
+        <div class="agent-loc">${a.loc}</div>
+      </div>
+    `;
+    agentListEl.appendChild(div);
+  });
+}
+renderAgentList();
+
+function focusAgent(name) {
+  if (!name) return;
+  const upper = name.toUpperCase();
+  const items = agentListEl.querySelectorAll('.agent-item');
+  items.forEach(item => item.classList.remove('agent-focus'));
+  // Match by name or code
+  const target = agentListEl.querySelector(`[data-agent-name="${upper}"]`)
+    || [...items].find(el => {
+      const a = agents.find(ag => ag.name === el.dataset.agentName);
+      return a && a.code === upper;
+    });
+  if (target) {
+    target.classList.add('agent-focus');
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function getAgentColor(status) {
+  switch (status) {
+    case 'active': return { hex: '#00e676', rgb: '0,230,118' };
+    case 'standby': return { hex: '#ffab00', rgb: '255,171,0' };
+    case 'dark': return { hex: '#ff3d3d', rgb: '255,61,61' };
+    case 'linked': return { hex: '#1e90ff', rgb: '30,144,255' };
+    default: return { hex: '#444', rgb: '68,68,68' };
+  }
+}
 
 // ============= MAP CANVAS =============
 const mapC = document.getElementById('mapCanvas');
@@ -771,11 +892,14 @@ const mapCtx = mapC.getContext('2d');
 let mapW, mapH;
 // Map projection: maintain 2:1 aspect ratio (world map), centered in canvas
 let mapOX = 0, mapOY = 0, mapSW = 0, mapSH = 0;
+let mapBgCanvas = null;
+let mapBgDirty = true;
+const DPR = Math.min(devicePixelRatio || 1, 2);
 
 function resizeMap() {
   const r = mapC.parentElement.getBoundingClientRect();
-  mapC.width = r.width * 2;
-  mapC.height = r.height * 2;
+  mapC.width = r.width * DPR;
+  mapC.height = r.height * DPR;
   mapW = mapC.width;
   mapH = mapC.height;
   // Fit 2:1 map into canvas, letterboxed
@@ -792,6 +916,7 @@ function resizeMap() {
   }
   mapOX = (mapW - mapSW) / 2;
   mapOY = (mapH - mapSH) / 2;
+  mapBgDirty = true;
 }
 resizeMap();
 window.addEventListener('resize', resizeMap);
@@ -816,16 +941,15 @@ const continents = [
   [[0.78,0.52],[0.82,0.50],[0.86,0.52],[0.87,0.56],[0.85,0.60],[0.82,0.62],[0.79,0.60],[0.77,0.56]],
 ];
 
-const trackingPoints = [
-  { x: 0.53, y: 0.23, label: 'VIENNA', active: true, pulse: true },
-  { x: 0.50, y: 0.20, label: 'BERLIN', active: true },
-  { x: 0.61, y: 0.28, label: 'KARACHI', active: true },
-  { x: 0.46, y: 0.30, label: 'TANGIER', active: true },
-  { x: 0.78, y: 0.28, label: 'MACAU', active: true },
-  { x: 0.52, y: 0.22, label: 'ISTANBUL', active: true },
-  { x: 0.58, y: 0.20, label: 'MOSCOW', active: false },
-  { x: 0.24, y: 0.28, label: 'LANGLEY', active: true, hq: true },
-];
+let trackingPoints = [];
+function rebuildTrackingPoints() {
+  trackingPoints = agents.filter(a => a.x != null && a.name !== 'PAPA').map(a => ({
+    x: a.x, y: a.y, label: a.name, locLabel: a.loc.split(',')[0],
+    active: a.status !== 'offline' && a.status !== 'dark',
+    hq: !!a.hq, status: a.status, agentName: a.name, linked: !!a.linked,
+  }));
+}
+rebuildTrackingPoints();
 
 let sweepAngle = 0;
 let mapTime = 0;
@@ -879,7 +1003,7 @@ function spawnEvent() {
     maxAge: evType.duration,
     ringPhase: 0,
   });
-  if (mapEvents.length > 12) mapEvents.shift();
+  if (mapEvents.length > 8) mapEvents.shift();
 }
 
 // Spawn events at varying intervals
@@ -905,7 +1029,7 @@ function spawnPacket() {
     speed: 0.005 + Math.random() * 0.008,
     color: outbound ? [30,144,255] : [0,230,118],
   });
-  if (dataPackets.length > 15) dataPackets.shift();
+  if (dataPackets.length > 10) dataPackets.shift();
 }
 setInterval(spawnPacket, 1200);
 
@@ -927,37 +1051,43 @@ const threatZones = [
   { x: 0.65, y: 0.22, r: 0.035, label: 'ZONE BRAVO' },
 ];
 
+// ---- Offscreen cache for static map background ----
+function renderMapBg() {
+  if (!mapBgCanvas) mapBgCanvas = document.createElement('canvas');
+  mapBgCanvas.width = mapW;
+  mapBgCanvas.height = mapH;
+  const ctx = mapBgCanvas.getContext('2d');
+  // Grid
+  ctx.strokeStyle = 'rgba(30,144,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 20; i++) {
+    ctx.moveTo(mapW * i / 20, 0); ctx.lineTo(mapW * i / 20, mapH);
+    ctx.moveTo(0, mapH * i / 20); ctx.lineTo(mapW, mapH * i / 20);
+  }
+  ctx.stroke();
+  // Continents
+  ctx.strokeStyle = 'rgba(30,144,255,0.25)';
+  ctx.fillStyle = 'rgba(30,144,255,0.04)';
+  ctx.lineWidth = 1.5;
+  continents.forEach(pts => {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = mapOX + p[0] * mapSW, y = mapOY + p[1] * mapSH;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  });
+  mapBgDirty = false;
+}
+
 function drawMap() {
   mapCtx.clearRect(0, 0, mapW, mapH);
-
-  // Grid (covers full canvas)
-  mapCtx.strokeStyle = 'rgba(30,144,255,0.06)';
-  mapCtx.lineWidth = 1;
-  for (let i = 0; i < 20; i++) {
-    mapCtx.beginPath();
-    mapCtx.moveTo(mapW * i / 20, 0);
-    mapCtx.lineTo(mapW * i / 20, mapH);
-    mapCtx.stroke();
-    mapCtx.beginPath();
-    mapCtx.moveTo(0, mapH * i / 20);
-    mapCtx.lineTo(mapW, mapH * i / 20);
-    mapCtx.stroke();
-  }
-
-  // Continents (aspect-corrected)
-  mapCtx.strokeStyle = 'rgba(30,144,255,0.25)';
-  mapCtx.fillStyle = 'rgba(30,144,255,0.04)';
-  mapCtx.lineWidth = 1.5;
-  continents.forEach(pts => {
-    mapCtx.beginPath();
-    pts.forEach((p, i) => {
-      const x = mapX(p[0]), y = mapY(p[1]);
-      i === 0 ? mapCtx.moveTo(x, y) : mapCtx.lineTo(x, y);
-    });
-    mapCtx.closePath();
-    mapCtx.fill();
-    mapCtx.stroke();
-  });
+  // Cached static background
+  if (mapBgDirty || !mapBgCanvas) renderMapBg();
+  mapCtx.drawImage(mapBgCanvas, 0, 0);
 
   // ---- THREAT ZONES (pulsing dashed circles) ----
   threatZones.forEach(tz => {
@@ -969,30 +1099,70 @@ function drawMap() {
     mapCtx.beginPath();
     mapCtx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
     mapCtx.fill();
-    mapCtx.setLineDash([6, 4]);
     mapCtx.strokeStyle = `rgba(255,61,61,${alpha + 0.1})`;
-    mapCtx.lineWidth = 1.5;
+    mapCtx.lineWidth = 1;
     mapCtx.stroke();
-    mapCtx.setLineDash([]);
-    mapCtx.font = '12px "Orbitron"';
-    mapCtx.fillStyle = `rgba(255,61,61,${0.4 + Math.sin(mapTime*0.06)*0.2})`;
-    mapCtx.fillText(tz.label, cx - 35, cy - r * pulse - 8);
   });
 
-  // Connection lines between active points
-  mapCtx.strokeStyle = 'rgba(30,144,255,0.08)';
-  mapCtx.lineWidth = 1;
-  mapCtx.setLineDash([4, 8]);
-  const hq = trackingPoints.find(p => p.hq);
-  trackingPoints.forEach(p => {
-    if (p.active && !p.hq && hq) {
-      mapCtx.beginPath();
-      mapCtx.moveTo(mapX(hq.x), mapY(hq.y));
-      mapCtx.lineTo(mapX(p.x), mapY(p.y));
-      mapCtx.stroke();
+  // --- Satellite orbits ---
+  satellites.forEach(sat => {
+    const t = (mapTime / sat.period + sat.phase / (Math.PI * 2)) % 1;
+    const [r, g, b] = sat.color;
+
+    // Draw orbit path (dashed sine wave)
+    mapCtx.strokeStyle = `rgba(${r},${g},${b},0.12)`;
+    mapCtx.lineWidth = 1;
+    mapCtx.setLineDash([4, 6]);
+    mapCtx.beginPath();
+    for (let i = 0; i <= 80; i++) {
+      const fx = i / 80;
+      const fy = 0.5 + Math.sin(fx * Math.PI * 2 + sat.phase) * sat.incl;
+      const px = mapX(fx), py = mapY(fy);
+      i === 0 ? mapCtx.moveTo(px, py) : mapCtx.lineTo(px, py);
     }
+    mapCtx.stroke();
+    mapCtx.setLineDash([]);
+
+    // Satellite current position (discrete steps synced to blink)
+    const stepInterval = 120;
+    const step = Math.floor((mapTime + sat.phase * 100) / stepInterval);
+    const sx = (step * stepInterval / sat.period + sat.phase / (Math.PI * 2)) % 1;
+    const sy = 0.5 + Math.sin(sx * Math.PI * 2 + sat.phase) * sat.incl;
+    const px = mapX(sx), py = mapY(sy);
+
+    const blink = 0.85;
+    mapCtx.fillStyle = `rgba(${r},${g},${b},${blink})`;
+    mapCtx.beginPath();
+    mapCtx.moveTo(px, py - 4);
+    mapCtx.lineTo(px + 3, py);
+    mapCtx.lineTo(px, py + 4);
+    mapCtx.lineTo(px - 3, py);
+    mapCtx.closePath();
+    mapCtx.fill();
+
+    // Label
+    mapCtx.font = '9px monospace';
+    mapCtx.fillStyle = `rgba(${r},${g},${b},0.5)`;
+    mapCtx.fillText(sat.id, px + 8, py + 3);
   });
-  mapCtx.setLineDash([]);
+
+  // Connection lines between active points (batched single path)
+  const hq = trackingPoints.find(p => p.hq);
+  if (hq) {
+    const hqx = mapX(hq.x), hqy = mapY(hq.y);
+    mapCtx.strokeStyle = 'rgba(30,144,255,0.08)';
+    mapCtx.lineWidth = 1;
+    mapCtx.setLineDash([4, 8]);
+    mapCtx.beginPath();
+    trackingPoints.forEach(p => {
+      if (p.active && !p.hq) {
+        mapCtx.moveTo(hqx, hqy);
+        mapCtx.lineTo(mapX(p.x), mapY(p.y));
+      }
+    });
+    mapCtx.stroke();
+    mapCtx.setLineDash([]);
+  }
 
   // ---- DATA PACKETS ----
   for (let i = dataPackets.length - 1; i >= 0; i--) {
@@ -1005,16 +1175,17 @@ function drawMap() {
     const arcY = -Math.sin(dp.progress * Math.PI) * 20;
     const finalPy = py + arcY;
     const [r,g,b] = dp.color;
-    mapCtx.shadowColor = `rgba(${r},${g},${b},0.8)`;
-    mapCtx.shadowBlur = 8;
+    mapCtx.fillStyle = `rgba(${r},${g},${b},0.15)`;
+    mapCtx.beginPath();
+    mapCtx.arc(px, finalPy, 7, 0, Math.PI * 2);
+    mapCtx.fill();
     mapCtx.fillStyle = `rgba(${r},${g},${b},0.9)`;
     mapCtx.beginPath();
     mapCtx.arc(px, finalPy, 3, 0, Math.PI * 2);
     mapCtx.fill();
-    mapCtx.shadowBlur = 0;
     mapCtx.fillStyle = `rgba(${r},${g},${b},0.2)`;
-    for (let t = 1; t <= 4; t++) {
-      const tp = dp.progress - dp.speed * t * 2;
+    for (let t = 1; t <= 2; t++) {
+      const tp = dp.progress - dp.speed * t * 3;
       if (tp < 0) break;
       const tnx = dp.fromX + (dp.toX - dp.fromX) * tp;
       const tny = dp.fromY + (dp.toY - dp.fromY) * tp;
@@ -1025,50 +1196,67 @@ function drawMap() {
     }
   }
 
-  // Tracking points
-  trackingPoints.forEach(p => {
-    const x = mapX(p.x), y = mapY(p.y);
-
-    const ringSpeed = p.hq ? 0.6 : 0.8;
-    const pulseR = 6 + (mapTime * ringSpeed % 50) * 0.7;
-    const pulseAlpha = Math.max(0, 0.35 - (mapTime * ringSpeed % 50) * 0.007);
-    const rc = p.hq ? `0,230,118` : (p.active ? `30,144,255` : `255,61,61`);
-    mapCtx.strokeStyle = `rgba(${rc},${pulseAlpha})`;
-    mapCtx.lineWidth = 1.5;
-    mapCtx.beginPath();
-    mapCtx.arc(x, y, pulseR, 0, Math.PI * 2);
-    mapCtx.stroke();
-    const pulseR2 = 6 + ((mapTime * ringSpeed + 25) % 50) * 0.7;
-    const pulseAlpha2 = Math.max(0, 0.25 - ((mapTime * ringSpeed + 25) % 50) * 0.005);
-    mapCtx.strokeStyle = `rgba(${rc},${pulseAlpha2})`;
-    mapCtx.beginPath();
-    mapCtx.arc(x, y, pulseR2, 0, Math.PI * 2);
-    mapCtx.stroke();
-
-    mapCtx.fillStyle = p.hq ? '#00e676' : (p.active ? '#1e90ff' : '#ff3d3d');
-    mapCtx.shadowColor = mapCtx.fillStyle;
-    mapCtx.shadowBlur = 12;
-    mapCtx.beginPath();
-    mapCtx.arc(x, y, 4, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.shadowBlur = 0;
-
-    if (p.active && !p.hq) {
-      const chSize = 10;
-      mapCtx.strokeStyle = `rgba(${rc},0.25)`;
-      mapCtx.lineWidth = 1;
-      mapCtx.beginPath();
-      mapCtx.moveTo(x - chSize, y); mapCtx.lineTo(x - 6, y);
-      mapCtx.moveTo(x + 6, y); mapCtx.lineTo(x + chSize, y);
-      mapCtx.moveTo(x, y - chSize); mapCtx.lineTo(x, y - 6);
-      mapCtx.moveTo(x, y + 6); mapCtx.lineTo(x, y + chSize);
-      mapCtx.stroke();
-    }
-
-    mapCtx.font = '16px "Share Tech Mono"';
-    mapCtx.fillStyle = 'rgba(200,216,236,0.5)';
-    mapCtx.fillText(p.label, x + 12, y + 4);
+  // Tracking points (agents) — precompute positions, then batch by draw type
+  const tpData = trackingPoints.map(p => {
+    const ac = getAgentColor(p.status);
+    return {
+      x: mapX(p.x), y: mapY(p.y),
+      rc: p.hq ? '0,230,118' : ac.rgb,
+      dot: p.hq ? '#00e676' : ac.hex,
+      ringSpeed: p.hq ? 0.6 : 0.8,
+      active: p.active, hq: p.hq,
+      label: p.label, locLabel: p.locLabel,
+    };
   });
+
+  // Pulse rings (batched per similar alpha — 2 passes)
+  mapCtx.lineWidth = 1.5;
+  tpData.forEach(t => {
+    const pr = 6 + (mapTime * t.ringSpeed % 50) * 0.7;
+    const pa = Math.max(0, 0.35 - (mapTime * t.ringSpeed % 50) * 0.007);
+    if (pa > 0.01) {
+      mapCtx.strokeStyle = `rgba(${t.rc},${pa})`;
+      mapCtx.beginPath(); mapCtx.arc(t.x, t.y, pr, 0, Math.PI * 2); mapCtx.stroke();
+    }
+    const pr2 = 6 + ((mapTime * t.ringSpeed + 25) % 50) * 0.7;
+    const pa2 = Math.max(0, 0.25 - ((mapTime * t.ringSpeed + 25) % 50) * 0.005);
+    if (pa2 > 0.01) {
+      mapCtx.strokeStyle = `rgba(${t.rc},${pa2})`;
+      mapCtx.beginPath(); mapCtx.arc(t.x, t.y, pr2, 0, Math.PI * 2); mapCtx.stroke();
+    }
+  });
+
+  // Glow circles + dots (batched)
+  tpData.forEach(t => {
+    mapCtx.fillStyle = `rgba(${t.rc},0.2)`;
+    mapCtx.beginPath(); mapCtx.arc(t.x, t.y, 10, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.fillStyle = t.dot;
+    mapCtx.beginPath(); mapCtx.arc(t.x, t.y, 4, 0, Math.PI * 2); mapCtx.fill();
+  });
+
+  // Crosshairs (single batch)
+  mapCtx.strokeStyle = 'rgba(30,144,255,0.25)';
+  mapCtx.lineWidth = 1;
+  mapCtx.beginPath();
+  tpData.forEach(t => {
+    if (t.active && !t.hq) {
+      mapCtx.moveTo(t.x - 10, t.y); mapCtx.lineTo(t.x - 6, t.y);
+      mapCtx.moveTo(t.x + 6, t.y); mapCtx.lineTo(t.x + 10, t.y);
+      mapCtx.moveTo(t.x, t.y - 10); mapCtx.lineTo(t.x, t.y - 6);
+      mapCtx.moveTo(t.x, t.y + 6); mapCtx.lineTo(t.x, t.y + 10);
+    }
+  });
+  mapCtx.stroke();
+
+  // Labels (single font set, batch text)
+  mapCtx.font = 'bold 13px "Orbitron"';
+  tpData.forEach(t => {
+    mapCtx.fillStyle = `rgba(${t.rc},0.8)`;
+    mapCtx.fillText(t.label, t.x + 12, t.y - 2);
+  });
+  mapCtx.font = '10px "Share Tech Mono"';
+  mapCtx.fillStyle = 'rgba(200,216,236,0.3)';
+  tpData.forEach(t => { mapCtx.fillText(t.locLabel, t.x + 12, t.y + 12); });
 
   // ---- AGENT PAPA MOVING DOT ----
   agentPapa.x += (agentPapa.targetX - agentPapa.x) * 0.01;
@@ -1084,13 +1272,14 @@ function drawMap() {
   });
   mapCtx.stroke();
   const ax = mapX(agentPapa.x), ay = mapY(agentPapa.y);
+  mapCtx.fillStyle = 'rgba(255,171,0,0.2)';
+  mapCtx.beginPath();
+  mapCtx.arc(ax, ay, 12, 0, Math.PI * 2);
+  mapCtx.fill();
   mapCtx.fillStyle = '#ffab00';
-  mapCtx.shadowColor = '#ffab00';
-  mapCtx.shadowBlur = 15;
   mapCtx.beginPath();
   mapCtx.arc(ax, ay, 5, 0, Math.PI * 2);
   mapCtx.fill();
-  mapCtx.shadowBlur = 0;
   mapCtx.font = 'bold 14px "Orbitron"';
   mapCtx.fillStyle = '#ffab00';
   mapCtx.fillText('PAPA', ax + 10, ay - 8);
@@ -1114,11 +1303,9 @@ function drawMap() {
     const [r,g,b] = ev.color;
     const fadeAlpha = lifeRatio < 0.1 ? lifeRatio * 10 : (lifeRatio > 0.8 ? (1 - lifeRatio) * 5 : 1);
 
-    for (let ring = 0; ring < 3; ring++) {
-      const ringAge = (ev.age - ring * 15);
-      if (ringAge < 0) continue;
-      const ringR = ringAge * 0.6;
-      const ringAlpha = Math.max(0, (0.5 - ringR * 0.005)) * fadeAlpha;
+    const ringR = ev.age * 0.6;
+    const ringAlpha = Math.max(0, (0.5 - ringR * 0.005)) * fadeAlpha;
+    if (ringAlpha > 0.01) {
       mapCtx.strokeStyle = `rgba(${r},${g},${b},${ringAlpha})`;
       mapCtx.lineWidth = 1.5;
       mapCtx.beginPath();
@@ -1128,52 +1315,31 @@ function drawMap() {
 
     const blinkOn = Math.sin(ev.age * 0.2) > -0.3;
     if (blinkOn) {
+      mapCtx.fillStyle = `rgba(${r},${g},${b},${0.15 * fadeAlpha})`;
+      mapCtx.beginPath();
+      mapCtx.arc(ex, ey, 10, 0, Math.PI * 2);
+      mapCtx.fill();
       mapCtx.fillStyle = `rgba(${r},${g},${b},${0.8 * fadeAlpha})`;
-      mapCtx.shadowColor = `rgba(${r},${g},${b},0.8)`;
-      mapCtx.shadowBlur = 12;
       mapCtx.beginPath();
       mapCtx.arc(ex, ey, 4, 0, Math.PI * 2);
       mapCtx.fill();
-      mapCtx.shadowBlur = 0;
     }
 
-    const reticleR = 18 + Math.sin(ev.age * 0.05) * 4;
-    mapCtx.save();
-    mapCtx.translate(ex, ey);
-    mapCtx.rotate(ev.age * 0.02);
+    const rr = 18 + Math.sin(ev.age * 0.05) * 4;
     mapCtx.strokeStyle = `rgba(${r},${g},${b},${0.3 * fadeAlpha})`;
     mapCtx.lineWidth = 1;
-    for (let c = 0; c < 4; c++) {
-      mapCtx.save();
-      mapCtx.rotate(c * Math.PI / 2);
-      mapCtx.beginPath();
-      mapCtx.moveTo(reticleR, reticleR * 0.3);
-      mapCtx.lineTo(reticleR, reticleR);
-      mapCtx.lineTo(reticleR * 0.3, reticleR);
-      mapCtx.stroke();
-      mapCtx.restore();
-    }
-    mapCtx.restore();
+    mapCtx.strokeRect(ex - rr, ey - rr, rr * 2, rr * 2);
 
     if (lifeRatio < 0.85) {
       const labelAlpha = fadeAlpha * 0.9;
       mapCtx.font = '12px "Orbitron"';
-      const textW = mapCtx.measureText(ev.label).width;
       mapCtx.fillStyle = `rgba(${r},${g},${b},${0.12 * labelAlpha})`;
-      mapCtx.fillRect(ex + 22, ey - 18, textW + 16, 22);
-      mapCtx.strokeStyle = `rgba(${r},${g},${b},${0.3 * labelAlpha})`;
-      mapCtx.lineWidth = 1;
-      mapCtx.strokeRect(ex + 22, ey - 18, textW + 16, 22);
+      mapCtx.fillRect(ex + 22, ey - 18, 180, 22);
       mapCtx.fillStyle = `rgba(${r},${g},${b},${0.85 * labelAlpha})`;
       mapCtx.fillText(ev.label, ex + 30, ey - 2);
       mapCtx.font = '10px "Share Tech Mono"';
       mapCtx.fillStyle = `rgba(${r},${g},${b},${0.5 * labelAlpha})`;
       mapCtx.fillText(ev.name, ex + 30, ey + 16);
-      mapCtx.strokeStyle = `rgba(${r},${g},${b},${0.2 * labelAlpha})`;
-      mapCtx.beginPath();
-      mapCtx.moveTo(ex + 6, ey);
-      mapCtx.lineTo(ex + 22, ey - 7);
-      mapCtx.stroke();
     }
 
     if (ev.icon === 'explosion' && ev.age < 60) {
@@ -1191,24 +1357,18 @@ function drawMap() {
     }
   }
 
-  // Sweep line from Langley
+  // Sweep line from Langley (single arc fill, no per-frame gradient)
   if (hq) {
     const cx = mapX(hq.x), cy = mapY(hq.y);
     const sweepLen = mapSW * 0.25;
-    for (let a = -0.15; a <= 0.15; a += 0.02) {
-      const sx = cx + Math.cos(sweepAngle + a) * sweepLen;
-      const sy = cy + Math.sin(sweepAngle + a) * sweepLen;
-      const alpha = 0.15 * (1 - Math.abs(a) / 0.15);
-      const grad = mapCtx.createLinearGradient(cx, cy, sx, sy);
-      grad.addColorStop(0, `rgba(0,230,118,${alpha})`);
-      grad.addColorStop(1, 'rgba(0,230,118,0)');
-      mapCtx.strokeStyle = grad;
-      mapCtx.lineWidth = 1;
-      mapCtx.beginPath();
-      mapCtx.moveTo(cx, cy);
-      mapCtx.lineTo(sx, sy);
-      mapCtx.stroke();
-    }
+    mapCtx.save();
+    mapCtx.beginPath();
+    mapCtx.moveTo(cx, cy);
+    mapCtx.arc(cx, cy, sweepLen, sweepAngle - 0.15, sweepAngle + 0.15);
+    mapCtx.closePath();
+    mapCtx.fillStyle = 'rgba(0,230,118,0.06)';
+    mapCtx.fill();
+    mapCtx.restore();
     sweepAngle += 0.015;
   }
 
@@ -1220,9 +1380,82 @@ function drawMap() {
   mapCtx.fillText(`LAT ${lat}°N  LON ${lon}°E  ALT 342m  BEARING ${(mapTime * 0.5 % 360).toFixed(0)}°`, 20, mapH - 20);
 
   mapTime++;
-  requestAnimationFrame(drawMap);
 }
-drawMap();
+
+// ============= MAP DRAG & DROP =============
+let mapDrag = null; // { agent, isPapa }
+let _mapRect = null;
+function cacheMapRect() { _mapRect = mapC.getBoundingClientRect(); }
+cacheMapRect();
+window.addEventListener('resize', cacheMapRect);
+window.addEventListener('scroll', cacheMapRect);
+
+function canvasToNorm(clientX, clientY) {
+  if (!_mapRect) cacheMapRect();
+  const cx = (clientX - _mapRect.left) * (mapC.width / _mapRect.width);
+  const cy = (clientY - _mapRect.top) * (mapC.height / _mapRect.height);
+  return { nx: (cx - mapOX) / mapSW, ny: (cy - mapOY) / mapSH };
+}
+
+function hitTestAgent(clientX, clientY) {
+  const { nx, ny } = canvasToNorm(clientX, clientY);
+  const hitR = 20 / mapSW; // ~20 canvas px radius
+  // Check PAPA first (top layer)
+  const pdx = agentPapa.x - nx, pdy = agentPapa.y - ny;
+  if (Math.sqrt(pdx*pdx + pdy*pdy) < hitR) {
+    return { agent: agents.find(a => a.name === 'PAPA'), isPapa: true };
+  }
+  // Check other agents
+  for (const a of agents) {
+    if (a.x == null || a.name === 'PAPA') continue;
+    const dx = a.x - nx, dy = a.y - ny;
+    if (Math.sqrt(dx*dx + dy*dy) < hitR) return { agent: a, isPapa: false };
+  }
+  return null;
+}
+
+mapC.addEventListener('mousedown', (e) => {
+  const hit = hitTestAgent(e.clientX, e.clientY);
+  if (!hit) return;
+  e.preventDefault();
+  e.stopPropagation();
+  mapDrag = hit;
+  mapC.style.cursor = 'grabbing';
+  focusAgent(hit.agent.name);
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!mapDrag) {
+    // Hover cursor — only check when inside map
+    if (!_mapRect) return;
+    const inside = e.clientX >= _mapRect.left && e.clientX <= _mapRect.right && e.clientY >= _mapRect.top && e.clientY <= _mapRect.bottom;
+    if (!inside) return;
+    const hit = hitTestAgent(e.clientX, e.clientY);
+    mapC.style.cursor = hit ? 'grab' : '';
+    return;
+  }
+  e.preventDefault();
+  const { nx, ny } = canvasToNorm(e.clientX, e.clientY);
+  const clampX = Math.max(0.05, Math.min(0.95, nx));
+  const clampY = Math.max(0.05, Math.min(0.95, ny));
+  if (mapDrag.isPapa) {
+    agentPapa.x = clampX;
+    agentPapa.y = clampY;
+    agentPapa.targetX = clampX;
+    agentPapa.targetY = clampY;
+    agentPapa.trail = [];
+  } else {
+    mapDrag.agent.x = clampX;
+    mapDrag.agent.y = clampY;
+    rebuildTrackingPoints();
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (!mapDrag) return;
+  mapC.style.cursor = 'grab';
+  mapDrag = null;
+});
 
 // ============= RADAR DISPLAY =============
 const radarC = document.getElementById('radarCanvas');
@@ -1243,13 +1476,58 @@ for (let i = 0; i < 8; i++) {
   });
 }
 
+let radarBgCanvas = null;
+let radarBgDirty = true;
 function resizeRadar() {
   const r = radarC.parentElement.getBoundingClientRect();
-  radarC.width = r.width * 2;
-  radarC.height = r.height * 2;
+  radarC.width = r.width * DPR;
+  radarC.height = r.height * DPR;
+  radarBgDirty = true;
 }
 resizeRadar();
 window.addEventListener('resize', resizeRadar);
+
+function renderRadarBg(w, h, cx, cy, radius) {
+  if (!radarBgCanvas) radarBgCanvas = document.createElement('canvas');
+  radarBgCanvas.width = w; radarBgCanvas.height = h;
+  const ctx = radarBgCanvas.getContext('2d');
+  // Range rings
+  for (let i = 1; i <= 4; i++) {
+    const r = radius * i / 4;
+    ctx.strokeStyle = `rgba(30,144,255,${0.08 + i * 0.02})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  // Cross + diagonal lines
+  ctx.strokeStyle = 'rgba(30,144,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
+  ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(30,144,255,0.05)';
+  ctx.beginPath();
+  const d45 = radius * 0.707;
+  ctx.moveTo(cx - d45, cy - d45); ctx.lineTo(cx + d45, cy + d45);
+  ctx.moveTo(cx + d45, cy - d45); ctx.lineTo(cx - d45, cy + d45);
+  ctx.stroke();
+  // Range labels
+  ctx.font = '10px "Share Tech Mono"';
+  ctx.fillStyle = 'rgba(30,144,255,0.3)';
+  for (let i = 1; i <= 4; i++) ctx.fillText(`${i * 25}km`, cx + 4, cy - radius * i / 4 + 12);
+  // Bearing labels
+  ctx.fillStyle = 'rgba(200,216,236,0.25)';
+  ctx.font = '11px "Orbitron"';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', cx, cy - radius - 6);
+  ctx.fillText('S', cx, cy + radius + 14);
+  ctx.textAlign = 'left';
+  ctx.fillText('E', cx + radius + 6, cy + 4);
+  ctx.textAlign = 'right';
+  ctx.fillText('W', cx - radius - 6, cy + 4);
+  ctx.textAlign = 'left';
+  radarBgDirty = false;
+}
 
 function drawRadar() {
   const w = radarC.width, h = radarC.height;
@@ -1258,42 +1536,17 @@ function drawRadar() {
 
   radarCtx.clearRect(0, 0, w, h);
 
-  // Range rings
-  for (let i = 1; i <= 4; i++) {
-    const r = radius * i / 4;
-    radarCtx.strokeStyle = `rgba(30,144,255,${0.08 + i * 0.02})`;
-    radarCtx.lineWidth = 1;
-    radarCtx.beginPath();
-    radarCtx.arc(cx, cy, r, 0, Math.PI * 2);
-    radarCtx.stroke();
-  }
+  // Cached static background
+  if (radarBgDirty || !radarBgCanvas) renderRadarBg(w, h, cx, cy, radius);
+  radarCtx.drawImage(radarBgCanvas, 0, 0);
 
-  // Cross lines
-  radarCtx.strokeStyle = 'rgba(30,144,255,0.1)';
-  radarCtx.lineWidth = 1;
+  // Sweep cone (simple arc fill instead of conicGradient)
+  radarCtx.fillStyle = 'rgba(0,230,118,0.08)';
   radarCtx.beginPath();
-  radarCtx.moveTo(cx - radius, cy); radarCtx.lineTo(cx + radius, cy);
-  radarCtx.moveTo(cx, cy - radius); radarCtx.lineTo(cx, cy + radius);
-  radarCtx.stroke();
-  // Diagonal lines
-  radarCtx.strokeStyle = 'rgba(30,144,255,0.05)';
-  radarCtx.beginPath();
-  const d45 = radius * 0.707;
-  radarCtx.moveTo(cx - d45, cy - d45); radarCtx.lineTo(cx + d45, cy + d45);
-  radarCtx.moveTo(cx + d45, cy - d45); radarCtx.lineTo(cx - d45, cy + d45);
-  radarCtx.stroke();
-
-  // Sweep cone (fading trail)
-  for (let s = 0; s < 40; s++) {
-    const a = radarAngle - s * 0.02;
-    const alpha = 0.25 * (1 - s / 40);
-    radarCtx.strokeStyle = `rgba(0,230,118,${alpha})`;
-    radarCtx.lineWidth = 1.5;
-    radarCtx.beginPath();
-    radarCtx.moveTo(cx, cy);
-    radarCtx.lineTo(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
-    radarCtx.stroke();
-  }
+  radarCtx.moveTo(cx, cy);
+  radarCtx.arc(cx, cy, radius, radarAngle - 0.8, radarAngle);
+  radarCtx.closePath();
+  radarCtx.fill();
 
   // Sweep glow arc
   radarCtx.strokeStyle = 'rgba(0,230,118,0.15)';
@@ -1333,128 +1586,114 @@ function drawRadar() {
 
     // Blip dot
     radarCtx.fillStyle = `rgba(${r},${g},${bb},${glow * 0.9})`;
-    radarCtx.shadowColor = `rgba(${r},${g},${bb},0.8)`;
-    radarCtx.shadowBlur = 8;
     radarCtx.beginPath();
     radarCtx.arc(bx, by, 3, 0, Math.PI * 2);
     radarCtx.fill();
-    radarCtx.shadowBlur = 0;
   });
 
   // Center dot
+  radarCtx.fillStyle = 'rgba(0,230,118,0.2)';
+  radarCtx.beginPath();
+  radarCtx.arc(cx, cy, 8, 0, Math.PI * 2);
+  radarCtx.fill();
   radarCtx.fillStyle = '#00e676';
-  radarCtx.shadowColor = '#00e676';
-  radarCtx.shadowBlur = 10;
   radarCtx.beginPath();
   radarCtx.arc(cx, cy, 3, 0, Math.PI * 2);
   radarCtx.fill();
-  radarCtx.shadowBlur = 0;
-
-  // Range labels
-  radarCtx.font = '10px "Share Tech Mono"';
-  radarCtx.fillStyle = 'rgba(30,144,255,0.3)';
-  for (let i = 1; i <= 4; i++) {
-    radarCtx.fillText(`${i * 25}km`, cx + 4, cy - radius * i / 4 + 12);
-  }
-
-  // Bearing labels
-  radarCtx.fillStyle = 'rgba(200,216,236,0.25)';
-  radarCtx.font = '11px "Orbitron"';
-  radarCtx.textAlign = 'center';
-  radarCtx.fillText('N', cx, cy - radius - 6);
-  radarCtx.fillText('S', cx, cy + radius + 14);
-  radarCtx.textAlign = 'left';
-  radarCtx.fillText('E', cx + radius + 6, cy + 4);
-  radarCtx.textAlign = 'right';
-  radarCtx.fillText('W', cx - radius - 6, cy + 4);
-  radarCtx.textAlign = 'left';
 
   radarAngle += 0.025;
-  requestAnimationFrame(drawRadar);
 }
-drawRadar();
 
 // ============= TARGET FACE (abstract) =============
 const tC = document.getElementById('targetCanvas');
 const tCtx = tC.getContext('2d');
 function resizeTarget() {
   const r = tC.parentElement.getBoundingClientRect();
-  tC.width = r.width * 2;
-  tC.height = r.height * 2;
+  tC.width = r.width * DPR;
+  tC.height = r.height * DPR;
 }
 resizeTarget();
 
 function drawTarget() {
   const w = tC.width, h = tC.height;
   tCtx.clearRect(0, 0, w, h);
-  
-  // Abstract face silhouette with scan lines
+
   tCtx.fillStyle = 'rgba(15,25,45,1)';
   tCtx.fillRect(0, 0, w, h);
-  
+
+  // Use min dimension as base unit to prevent aspect-ratio distortion
+  const s = Math.min(w, h);
+  const cx = w / 2, cy = h * 0.45;
+
   // Head shape
-  const cx = w/2, cy = h * 0.45;
   tCtx.fillStyle = 'rgba(30,60,100,0.4)';
   tCtx.beginPath();
-  tCtx.ellipse(cx, cy, w*0.18, h*0.28, 0, 0, Math.PI*2);
+  tCtx.ellipse(cx, cy, s * 0.22, s * 0.30, 0, 0, Math.PI * 2);
   tCtx.fill();
-  
+
   // Shoulders
   tCtx.beginPath();
-  tCtx.ellipse(cx, h*0.85, w*0.35, h*0.25, 0, Math.PI, 0);
+  tCtx.ellipse(cx, h * 0.85, s * 0.42, s * 0.28, 0, Math.PI, 0);
   tCtx.fill();
 
   // Facial recognition grid
   tCtx.strokeStyle = 'rgba(30,144,255,0.15)';
   tCtx.lineWidth = 1;
   for (let i = 0; i < 8; i++) {
+    const rx = s * 0.06 + i * s * 0.025;
+    const ry = s * 0.08 + i * s * 0.033;
     tCtx.beginPath();
-    tCtx.ellipse(cx, cy, w*0.05 + i*w*0.02, h*0.07 + i*h*0.03, 0, 0, Math.PI*2);
+    tCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
     tCtx.stroke();
   }
 
   // Scanning line
   const scanY = (Date.now() / 20) % h;
-  const grad = tCtx.createLinearGradient(0, scanY-10, 0, scanY+10);
+  const grad = tCtx.createLinearGradient(0, scanY - 10, 0, scanY + 10);
   grad.addColorStop(0, 'rgba(255,61,61,0)');
   grad.addColorStop(0.5, 'rgba(255,61,61,0.3)');
   grad.addColorStop(1, 'rgba(255,61,61,0)');
   tCtx.fillStyle = grad;
-  tCtx.fillRect(0, scanY-10, w, 20);
+  tCtx.fillRect(0, scanY - 10, w, 20);
 
-  // Data points
-  const pts = [[0.38,0.35],[0.62,0.35],[0.50,0.45],[0.43,0.52],[0.57,0.52],[0.50,0.55]];
+  // Data points — relative to head center using s
+  const pts = [
+    [cx - s*0.10, cy - s*0.08],
+    [cx + s*0.10, cy - s*0.08],
+    [cx,          cy],
+    [cx - s*0.06, cy + s*0.06],
+    [cx + s*0.06, cy + s*0.06],
+    [cx,          cy + s*0.09],
+  ];
   tCtx.fillStyle = 'rgba(255,61,61,0.6)';
   pts.forEach(p => {
     tCtx.beginPath();
-    tCtx.arc(p[0]*w, p[1]*h, 3, 0, Math.PI*2);
+    tCtx.arc(p[0], p[1], 3, 0, Math.PI * 2);
     tCtx.fill();
   });
-  // Lines between
   tCtx.strokeStyle = 'rgba(255,61,61,0.2)';
   tCtx.lineWidth = 1;
   tCtx.beginPath();
-  pts.forEach((p,i) => { i===0 ? tCtx.moveTo(p[0]*w,p[1]*h) : tCtx.lineTo(p[0]*w,p[1]*h); });
+  pts.forEach((p, i) => { i === 0 ? tCtx.moveTo(p[0], p[1]) : tCtx.lineTo(p[0], p[1]); });
   tCtx.closePath();
   tCtx.stroke();
 
   // "MATCH: 94.7%" text
-  const matchFS = Math.max(12, Math.min(22, w * 0.08));
+  const matchFS = Math.max(12, Math.min(22, s * 0.08));
   tCtx.font = `bold ${matchFS}px "Orbitron"`;
   tCtx.fillStyle = 'rgba(255,61,61,0.7)';
-  tCtx.fillText('MATCH: 94.7%', w*0.15, h*0.72);
+  tCtx.fillText('MATCH: 94.7%', cx - s * 0.22, h * 0.72);
 
-  requestAnimationFrame(drawTarget);
 }
-drawTarget();
+
 
 // ============= SIGNAL WAVEFORM =============
 const sigC = document.getElementById('signalCanvas');
 const sigCtx = sigC.getContext('2d');
 function resizeSig() {
   const r = sigC.parentElement.getBoundingClientRect();
-  sigC.width = r.width * 2;
-  sigC.height = r.height * 2;
+  sigC.width = r.width * DPR;
+  sigC.height = r.height * DPR;
 }
 resizeSig();
 
@@ -1467,7 +1706,7 @@ function drawSignal() {
   sigCtx.strokeStyle = 'rgba(0,230,118,0.5)';
   sigCtx.lineWidth = 1.5;
   sigCtx.beginPath();
-  for (let x = 0; x < w; x++) {
+  for (let x = 0; x < w; x += 2) {
     const t = x / w * 12 + sigOffset;
     const y = h/2 + Math.sin(t) * h*0.25 + Math.sin(t*2.7) * h*0.12 + Math.sin(t*0.5) * h*0.1 + (Math.random()-0.5) * 4;
     x === 0 ? sigCtx.moveTo(x, y) : sigCtx.lineTo(x, y);
@@ -1478,7 +1717,7 @@ function drawSignal() {
   sigCtx.strokeStyle = 'rgba(30,144,255,0.3)';
   sigCtx.lineWidth = 1;
   sigCtx.beginPath();
-  for (let x = 0; x < w; x++) {
+  for (let x = 0; x < w; x += 2) {
     const t = x / w * 18 + sigOffset * 1.3;
     const y = h/2 + Math.sin(t*1.5) * h*0.15 + Math.cos(t*3) * h*0.08 + (Math.random()-0.5) * 6;
     x === 0 ? sigCtx.moveTo(x, y) : sigCtx.lineTo(x, y);
@@ -1494,9 +1733,23 @@ function drawSignal() {
   sigCtx.stroke();
 
   sigOffset += 0.08;
-  requestAnimationFrame(drawSignal);
 }
-drawSignal();
+
+// ============= UNIFIED RENDER LOOP =============
+let _frame = 0;
+function animate() {
+  _frame++;
+  if (_frame & 1) { // 30fps for map & radar
+    drawMap();
+    drawRadar();
+  }
+  if (_frame % 3 === 0) { // ~20fps for target & signal
+    drawTarget();
+    drawSignal();
+  }
+  requestAnimationFrame(animate);
+}
+animate();
 
 // ============= DATA FEED =============
 const feedEl = document.getElementById('dataFeed');
@@ -1527,11 +1780,22 @@ function addFeedLine() {
   feedIdx++;
 }
 
+function fmtTs(d) {
+  const o = d || new Date();
+  const mm = String(o.getMonth()+1).padStart(2,'0');
+  const dd = String(o.getDate()).padStart(2,'0');
+  return `${mm}-${dd} ${o.toISOString().slice(11,19)}`;
+}
+
+function agentLabel(name) {
+  const a = agents.find(a => a.name === name);
+  return a ? `${a.code} - ${a.name}` : name;
+}
+
 // Universal helper: push any HTML line to the SIGINT feed
 function pushFeed(html) {
   const line = document.createElement('div');
-  const ts = new Date().toISOString().slice(11,19);
-  line.innerHTML = `<span style="color:var(--text-dim)">${ts}Z</span> ${html}`;
+  line.innerHTML = `<span style="color:var(--text-dim)">${new Date().toISOString().slice(11,19)}Z</span> ${html}`;
   feedEl.appendChild(line);
   while (feedEl.children.length > 20) {
     feedEl.removeChild(feedEl.firstChild);
@@ -1554,47 +1818,59 @@ window.addEventListener('unhandledrejection', (e) => {
 // ============= COMMS LOG =============
 const commsEl = document.getElementById('commsLog');
 const commsLines = [
-  { src: 'TECHOPS', msg: 'PAPA, new intel on PROMETHEUS — uploading now' },
+  { src: 'ORACLE', msg: 'PAPA, new intel on PROMETHEUS — uploading now' },
   { src: 'PAPA', msg: 'Copy. Moving to secondary position' },
   { src: 'DIRECTOR', msg: 'All stations: NIGHTFALL protocol is now ACTIVE' },
-  { src: 'STATION-V', msg: '[ENCRYPTED — AES-256 — DECRYPTING...]', encrypted: true },
-  { src: '004', msg: 'Tangier harbour compromised. Falling back to Alpha' },
-  { src: 'TECHOPS', msg: 'Tracker shows target heading NNW — speed 85km/h' },
+  { src: 'COBRA', msg: '[ENCRYPTED — AES-256 — DECRYPTING...]', encrypted: true },
+  { src: 'FALCON', msg: 'Tangier harbour compromised. Falling back to Alpha' },
+  { src: 'ORACLE', msg: 'Tracker shows target heading NNW — speed 85km/h' },
   { src: 'DIRECTOR', msg: 'PAPA: You are authorised. Weapons free.' },
   { src: 'PAPA', msg: 'Understood. Going dark.' },
-  { src: 'DISPATCH', msg: 'Vienna station reports civilian evac complete' },
-  { src: 'STATION-K', msg: '[ENCRYPTED — QUANTUM CIPHER — PENDING...]', encrypted: true },
-  { src: 'TECHOPS', msg: 'Papa, I\'m reading elevated radiation at the compound' },
-  { src: '001', msg: 'Berlin team in position. Awaiting green light' },
+  { src: 'PHOENIX', msg: 'Istanbul safehouse secure. Awaiting further orders' },
+  { src: 'RAVEN', msg: '[ENCRYPTED — QUANTUM CIPHER — PENDING...]', encrypted: true },
+  { src: 'ORACLE', msg: 'Papa, I\'m reading elevated radiation at the compound' },
+  { src: 'AEGIS', msg: 'Berlin team in position. Awaiting green light' },
   { src: 'DIRECTOR', msg: 'All units: Hold positions. Do NOT engage until authorised' },
   { src: 'PAPA', msg: 'I have visual on the target. Requesting confirmation' },
-  { src: 'TECHOPS', msg: 'Facial recognition: 94.7% match. It\'s him.' },
+  { src: 'SPECTRE', msg: 'Macau contact confirmed. Asset is cooperative.' },
   { src: 'DIRECTOR', msg: 'Confirmed. Execute.' },
 ];
 
 let commsIdx = 0;
 let dummyCommsEnabled = true;
-function addCommsLine() {
-  if (!dummyCommsEnabled) return;
+function addCommsLine(tsOverride) {
+  if (!dummyCommsEnabled && !tsOverride) return;
   const c = commsLines[commsIdx % commsLines.length];
-  const now = new Date();
-  const ts = now.toISOString().slice(11,19);
+  const ts = tsOverride || fmtTs();
   const line = document.createElement('div');
+  const srcAgent = agents.find(a => a.name === c.src);
+  const srcColor = srcAgent ? getAgentColor(srcAgent.status).hex : '';
+  const srcStyle = srcColor ? ` style="color:${srcColor}"` : '';
+  const label = agentLabel(c.src);
   if (c.encrypted) {
-    line.innerHTML = `<span class="ts">${ts}</span> <span class="src">${c.src}</span>: <span class="encrypted">${c.msg}</span>`;
+    line.innerHTML = `<span class="ts">${ts}</span> <span class="src"${srcStyle}>${label}</span>: <span class="encrypted">${c.msg}</span>`;
   } else {
-    line.innerHTML = `<span class="ts">${ts}</span> <span class="src">${c.src}</span>: <span class="msg">${c.msg}</span>`;
+    line.innerHTML = `<span class="ts">${ts}</span> <span class="src"${srcStyle}>${label}</span>: <span class="msg">${c.msg}</span>`;
   }
   commsEl.appendChild(line);
   commsIdx++;
-  
+
   while (commsEl.children.length > 30) {
     commsEl.removeChild(commsEl.firstChild);
   }
   commsEl.scrollTop = commsEl.scrollHeight;
+  if (!tsOverride) focusAgent(c.src);
 }
 
-for (let i = 0; i < 5; i++) addCommsLine();
+// Seed comms with backfilled timestamps so it looks active from the start
+{
+  const now = Date.now();
+  const seedCount = 12;
+  for (let i = seedCount; i > 0; i--) {
+    const past = new Date(now - i * 4700 - Math.random() * 2000);
+    addCommsLine(fmtTs(past));
+  }
+}
 setInterval(addCommsLine, 5000);
 
 // ============= RESIZE HANDLER =============
@@ -1643,16 +1919,35 @@ function triggerMapAlert() {
 
 // Auto events toggle
 let autoEventsEnabled = true;
+const autoEventKeys = ['1','3','4','5','6','7','8','0']; // exclude 2(explosion), 9(countdown)
 
-// First alert after 5s, then random intervals 8-20s
-setTimeout(() => { if (autoEventsEnabled) triggerMapAlert(); }, 5000);
-setInterval(() => {
-  if (autoEventsEnabled) triggerMapAlert();
-}, 8000 + Math.random() * 12000);
+function fireAutoEvent() {
+  if (!autoEventsEnabled) return;
+  const key = autoEventKeys[Math.floor(Math.random() * autoEventKeys.length)];
+  keyActions[key].action();
+}
 
+// First event after 5s, then random intervals
+setTimeout(fireAutoEvent, 5000);
+setInterval(fireAutoEvent, 8000 + Math.random() * 12000);
+setInterval(() => { if (Math.random() > 0.5) fireAutoEvent(); }, 15000);
+
+// Periodic agent status shuffle (30-60s interval)
+const statusPool = ['active', 'standby', 'dark'];
+const statusLabel = { active: 'ACTIVE', standby: 'STANDBY', dark: 'DARK' };
 setInterval(() => {
-  if (autoEventsEnabled && Math.random() > 0.5) triggerMapAlert();
-}, 15000);
+  if (!autoEventsEnabled) return;
+  const candidates = agents.filter(a => !a.linked && !a.hq && a.name !== 'PAPA');
+  if (!candidates.length) return;
+  const agent = candidates[Math.floor(Math.random() * candidates.length)];
+  const prev = agent.status;
+  let next;
+  do { next = statusPool[Math.floor(Math.random() * statusPool.length)]; } while (next === prev);
+  agent.status = next;
+  rebuildTrackingPoints();
+  renderAgentList();
+  pushFeed(`<span class="info">[FIELD]</span> ${agent.name} status changed: ${statusLabel[prev] || prev.toUpperCase()} → ${statusLabel[next]}`);
+}, 30000 + Math.random() * 30000);
 
 // ============= WEB AUDIO SYNTH =============
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1817,19 +2112,19 @@ const keyActions = {
       const urgentMsgs = [
         { src: 'PAPA', msg: 'I have the target in sight. Requesting green light.' },
         { src: 'DIRECTOR', msg: 'All stations — PRIORITY ONE — WEAPONS FREE.' },
-        { src: 'TECHOPS', msg: 'Papa, get out now. They know you\'re there.' },
-        { src: 'DISPATCH', msg: 'Extraction team en route. Hold your position.' },
-        { src: '004', msg: 'MAYDAY MAYDAY — position compromised. Going dark.' },
+        { src: 'ORACLE', msg: 'Papa, get out now. They know you\'re there.' },
+        { src: 'AEGIS', msg: 'Extraction team en route. Hold your position.' },
+        { src: 'FALCON', msg: 'MAYDAY MAYDAY — position compromised. Going dark.' },
       ];
       const msg = urgentMsgs[Math.floor(Math.random() * urgentMsgs.length)];
-      const now = new Date();
-      const ts = now.toISOString().slice(11,19);
+      const ts = fmtTs();
       const line = document.createElement('div');
-      line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:#ff3d3d">★ ${msg.src}</span>: <span class="msg" style="color:#e8f0ff">${msg.msg}</span>`;
+      line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:#ff3d3d">★ ${agentLabel(msg.src)}</span>: <span class="msg" style="color:#e8f0ff">${msg.msg}</span>`;
       commsEl.appendChild(line);
       while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
       commsEl.scrollTop = commsEl.scrollHeight;
       pushFeed(`<span class="warn">[COMMS]</span> Priority transmission received from ${msg.src}`);
+      focusAgent(msg.src);
     }
   },
   '5': {
@@ -1997,6 +2292,7 @@ document.addEventListener('click', () => {
 });
 commsInput.focus();
 
+
 // ---- AUTO-TYPE DIALOGUE POOL (100 lines) ----
 const autoTypeMessages = [
   'Confirm visual on target. Moving to intercept position.',
@@ -2114,24 +2410,24 @@ function pickAutoTypeMessage() {
 
 // ---- REPLY POOL ----
 const replyPool = [
-  { src: 'TECHOPS', msg: 'Copy that. Processing your request.' },
+  { src: 'ORACLE', msg: 'Copy that. Processing your request.' },
   { src: 'DIRECTOR', msg: 'Acknowledged. Proceed with caution.' },
-  { src: 'DISPATCH', msg: 'Message relayed to all field stations.' },
-  { src: 'TECHOPS', msg: 'Understood. Updating ARGUS database.' },
+  { src: 'AEGIS', msg: 'Berlin team copies. Awaiting green light.' },
+  { src: 'ORACLE', msg: 'Understood. Updating ARGUS database.' },
   { src: 'DIRECTOR', msg: 'Noted. Keep this channel secure.' },
   { src: 'PAPA', msg: 'Received. Maintaining radio silence.' },
-  { src: 'STATION-V', msg: 'Confirmed. Adjusting operational parameters.' },
-  { src: 'TECHOPS', msg: 'Running analysis now. Stand by for results.' },
+  { src: 'PHOENIX', msg: 'Istanbul confirms. Adjusting operational parameters.' },
+  { src: 'ORACLE', msg: 'Running analysis now. Stand by for results.' },
   { src: 'DIRECTOR', msg: 'Very well. I\'ll brief the minister.' },
-  { src: 'DISPATCH', msg: 'Filed under Priority Alpha. Eyes only.' },
+  { src: 'SPECTRE', msg: 'Macau station copies. Eyes only.' },
   { src: 'PAPA', msg: 'Roger. Moving to secondary position now.' },
-  { src: 'TECHOPS', msg: 'Satellite feed updated. Check main display.' },
-  { src: '001', msg: 'Berlin team copies. Awaiting green light.' },
+  { src: 'ORACLE', msg: 'Satellite feed updated. Check main display.' },
+  { src: 'FALCON', msg: 'Tangier team in position. Ready on your mark.' },
   { src: 'DIRECTOR', msg: 'Approved. Execute at your discretion.' },
-  { src: 'STATION-K', msg: 'Karachi station acknowledges. Standing by.' },
-  { src: 'DISPATCH', msg: 'Routing backup to your position. ETA 8 minutes.' },
-  { src: 'TECHOPS', msg: 'Decryption complete. Sending results now.' },
-  { src: '004', msg: 'Tangier team in position. Ready on your mark.' },
+  { src: 'COBRA', msg: 'Karachi station acknowledges. Standing by.' },
+  { src: 'RAVEN', msg: 'Moscow intel confirms. Routing to you now.' },
+  { src: 'ORACLE', msg: 'Decryption complete. Sending results now.' },
+  { src: 'SHADOW', msg: 'Tehran team standing by. Awaiting orders.' },
   { src: 'DIRECTOR', msg: 'The committee has been informed. Carry on.' },
   { src: 'PAPA', msg: 'Copy. Going dark for 20 minutes.' },
 ];
@@ -2139,7 +2435,7 @@ const replyPool = [
 let operatorName = 'OPERATOR';
 
 function sendOperatorMsg(msg) {
-  const ts = new Date().toISOString().slice(11,19);
+  const ts = fmtTs();
   const line = document.createElement('div');
   line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:var(--green)">${escapeHtml(operatorName)}</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(msg)}</span>`;
   commsEl.appendChild(line);
@@ -2147,25 +2443,50 @@ function sendOperatorMsg(msg) {
   commsEl.scrollTop = commsEl.scrollHeight;
   playTone(800, 0.06, 'sine', 0.08);
   setTimeout(() => playTone(1200, 0.08, 'sine', 0.06), 60);
+  broadcastToPeers({type:'chat', name: operatorName, text: msg});
 
   // Auto-reply
   setTimeout(() => {
     const reply = replyPool[Math.floor(Math.random() * replyPool.length)];
-    const rts = new Date().toISOString().slice(11,19);
+    const rts = fmtTs();
     const rline = document.createElement('div');
-    rline.innerHTML = `<span class="ts">${rts}</span> <span class="src">${reply.src}</span>: <span class="msg">${reply.msg}</span>`;
+    const ra = agents.find(a => a.name === reply.src);
+    const rColor = ra ? getAgentColor(ra.status).hex : '';
+    const rStyle = rColor ? ` style="color:${rColor}"` : '';
+    rline.innerHTML = `<span class="ts">${rts}</span> <span class="src"${rStyle}>${agentLabel(reply.src)}</span>: <span class="msg">${reply.msg}</span>`;
     commsEl.appendChild(rline);
     while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
     commsEl.scrollTop = commsEl.scrollHeight;
     sfx.comms();
+    focusAgent(reply.src);
   }, 1500 + Math.random() * 2500);
 }
 
 // ============= SLASH COMMAND HINT =============
 const cmdHint = document.getElementById('cmdHint');
 
-function showCmdHint() { cmdHint.classList.add('visible'); }
-function hideCmdHint() { cmdHint.classList.remove('visible'); }
+let cmdHintIdx = -1;
+
+function getVisibleHintItems() {
+  return [...cmdHint.querySelectorAll('.cmd-hint-item')].filter(i => i.style.display !== 'none');
+}
+
+function updateHintSelection() {
+  const items = getVisibleHintItems();
+  items.forEach((item, i) => item.classList.toggle('cmd-selected', i === cmdHintIdx));
+}
+
+function showCmdHint() {
+  cmdHint.classList.add('visible');
+  cmdHintIdx = -1;
+  updateHintSelection();
+}
+
+function hideCmdHint() {
+  cmdHint.classList.remove('visible');
+  cmdHintIdx = -1;
+  updateHintSelection();
+}
 
 function setAutoType(enabled) {
   autoTypeEnabled = enabled;
@@ -2206,14 +2527,14 @@ function handleSlashCommand(cmd) {
   const base = parts[1].toLowerCase();
   const arg = parts[2] || '';
 
-  if (base === '/auto') {
+  if (base === '/auto-type') {
     setAutoType(parseToggle(arg, autoTypeEnabled));
     return true;
   }
 
-  if (base === '/event') {
+  if (base === '/auto-event') {
     autoEventsEnabled = parseToggle(arg, autoEventsEnabled);
-    showHint(autoEventsEnabled ? 'AUTO EVENTS ON' : 'AUTO EVENTS OFF');
+    showHint(autoEventsEnabled ? 'AUTO-EVENT ON' : 'AUTO-EVENT OFF');
     pushFeed(autoEventsEnabled
       ? '<span class="highlight">[SYSTEM]</span> Auto events ENABLED'
       : '<span class="warn">[SYSTEM]</span> Auto events DISABLED');
@@ -2226,16 +2547,18 @@ function handleSlashCommand(cmd) {
     return true;
   }
 
-  if (base === '/comms') {
+  if (base === '/auto-comms') {
     dummyCommsEnabled = parseToggle(arg, dummyCommsEnabled);
     showHint(dummyCommsEnabled ? 'DUMMY COMMS ON' : 'DUMMY COMMS OFF');
     return true;
   }
 
+
   if (base === '/name' && arg) {
     operatorName = arg.trim().toUpperCase();
     document.querySelector('.comms-input-prefix').textContent = operatorName + ' >';
     showHint(`CALLSIGN: ${operatorName}`);
+    broadcastToPeers({type:'name', name: operatorName});
     return true;
   }
 
@@ -2244,7 +2567,49 @@ function handleSlashCommand(cmd) {
   if (numMatch && keyActions[numMatch[1]]) {
     const action = keyActions[numMatch[1]];
     action.action();
+    broadcastToPeers({type:'trigger', key: numMatch[1]});
     showHint(`/${numMatch[1]} — ${action.name}`);
+    return true;
+  }
+
+  // ---- P2P ----
+  if (base === '/link') {
+    const a = arg.trim().toLowerCase();
+    if (/^\d{6}$/.test(a)) {
+      // /link <code> → connect to peer
+      if (maxSlots === 0) maxSlots = 1;
+      updatePeerStatus();
+      pushFeed(`<span class="info">[P2P]</span> Connecting to ${a}...`);
+      const conn = peer.connect('spy-' + a);
+      registerConn(conn);
+    } else if (a === 'off' || (!a && (maxSlots > 0 || peerConns.length > 0))) {
+      // /link off or toggle off
+      peerConns.forEach(c => { removeLinkedAgent(c); c.close(); });
+      peerConns = [];
+      maxSlots = 0;
+      updatePeerStatus();
+      pushFeed('<span class="warn">[P2P]</span> Link closed');
+      showHint('LINK OFF');
+    } else {
+      // /link on or toggle on
+      if (maxSlots === 0) maxSlots = 1;
+      updatePeerStatus();
+      pushFeed(`<span class="info">[P2P]</span> Link open — Room: <span style="color:var(--amber)">${peerCode}</span>`);
+      showRoomCode();
+    }
+    return true;
+  }
+
+  if (base === '/link-slot') {
+    const n = parseInt(arg);
+    if (isNaN(n) || n < 1) {
+      pushFeed('<span class="warn">[P2P]</span> Usage: /link-slot &lt;number&gt; (min 1)');
+      return true;
+    }
+    maxSlots = n;
+    updatePeerStatus();
+    pushFeed(`<span class="info">[P2P]</span> Max connections set to ${maxSlots}`);
+    showHint(`SLOTS: ${maxSlots}`);
     return true;
   }
 
@@ -2255,8 +2620,40 @@ function handleSlashCommand(cmd) {
 commsInput.addEventListener('keydown', (e) => {
   const val = commsInput.value;
 
+  // Arrow key navigation in command hint overlay
+  if (cmdHint.classList.contains('visible') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault();
+    const items = getVisibleHintItems();
+    if (items.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      cmdHintIdx = cmdHintIdx < items.length - 1 ? cmdHintIdx + 1 : 0;
+    } else {
+      cmdHintIdx = cmdHintIdx > 0 ? cmdHintIdx - 1 : items.length - 1;
+    }
+    updateHintSelection();
+    // Fill input with selected command
+    const key = items[cmdHintIdx].querySelector('.cmd-key');
+    if (key) commsInput.value = key.textContent;
+    return;
+  }
+
   if (e.key === 'Enter') {
     e.preventDefault();
+    // If hint is visible and an item is selected, use it
+    if (cmdHint.classList.contains('visible') && cmdHintIdx >= 0) {
+      const items = getVisibleHintItems();
+      const sel = items[cmdHintIdx];
+      if (sel) {
+        const key = sel.querySelector('.cmd-key').textContent;
+        commsInput.value = key;
+        hideCmdHint();
+        // Commands that need args: don't auto-submit, let user type the arg
+        if (['/name','/slots','/connect'].includes(key)) {
+          commsInput.value = key + ' ';
+          return;
+        }
+      }
+    }
     const trimmed = val.trim();
     if (!trimmed) return;
 
@@ -2417,12 +2814,205 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     const action = keyActions[e.key];
     action.action();
+    broadcastToPeers({type:'trigger', key: e.key});
     keyHintDiv.textContent = `[Ctrl+${e.key}] ${action.name}`;
     keyHintDiv.style.opacity = '1';
     clearTimeout(keyHintDiv._timer);
     keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
   }
 });
+
+// ============= PEERJS P2P =============
+let peerCode = String(Math.floor(100000 + Math.random() * 900000));
+let peer = null;
+let peerConns = [];
+let maxSlots = 0;
+let isRemoteAction = false;
+
+function updatePeerStatus() {
+  const el = document.getElementById('peerStatus');
+  const linked = peerConns.length;
+  if (maxSlots === 0 && linked === 0) {
+    el.innerHTML = `<span style="color:var(--text-dim)">○ LINK OFF</span>`;
+  } else {
+    const statusDot = linked > 0 ? '●' : '○';
+    const statusText = linked > 0 ? `LINKED (${linked})` : 'WAITING';
+    const statusColor = linked > 0 ? 'var(--green)' : 'var(--amber)';
+    el.innerHTML = `ROOM: <span style="color:var(--amber)">${peerCode}</span> &nbsp; SLOTS: ${linked}/${maxSlots} &nbsp; <span style="color:${statusColor}">${statusDot} ${statusText}</span>`;
+  }
+}
+
+function showRoomCode() {
+  const overlay = document.getElementById('roomCodeOverlay');
+  document.getElementById('roomCodeDisplay').textContent = peerCode;
+  overlay.style.display = 'flex';
+  const btn = document.getElementById('roomCodeOkBtn');
+  function dismiss() {
+    overlay.style.display = 'none';
+    btn.removeEventListener('click', dismiss);
+  }
+  btn.addEventListener('click', dismiss);
+  sfx.confirm();
+}
+
+function showPeerConfirm(peerId) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('peerConfirmOverlay');
+    document.getElementById('peerConfirmId').textContent = peerId;
+    overlay.style.display = 'flex';
+    const acceptBtn = document.getElementById('peerAcceptBtn');
+    const rejectBtn = document.getElementById('peerRejectBtn');
+    function cleanup() {
+      overlay.style.display = 'none';
+      acceptBtn.removeEventListener('click', onAccept);
+      rejectBtn.removeEventListener('click', onReject);
+    }
+    function onAccept() { cleanup(); resolve(true); }
+    function onReject() { cleanup(); resolve(false); }
+    acceptBtn.addEventListener('click', onAccept);
+    rejectBtn.addEventListener('click', onReject);
+    sfx.alert();
+  });
+}
+
+function addLinkedAgent(conn) {
+  const code = conn.peer.replace('spy-', '');
+  const agent = {
+    code: code, name: code, loc: 'LINKED', status: 'active', role: 'LINKED PEER',
+    x: 0.30 + Math.random() * 0.35, y: 0.20 + Math.random() * 0.25,
+    linked: true, _conn: conn,
+  };
+  agents.push(agent);
+  rebuildTrackingPoints();
+  renderAgentList();
+  focusAgent(code);
+}
+
+function removeLinkedAgent(conn) {
+  const idx = agents.findIndex(a => a._conn === conn);
+  if (idx >= 0) {
+    agents.splice(idx, 1);
+    rebuildTrackingPoints();
+    renderAgentList();
+  }
+}
+
+function updateLinkedAgentName(conn, name) {
+  const agent = agents.find(a => a._conn === conn);
+  if (agent && agent.name !== name) {
+    agent.name = name;
+    rebuildTrackingPoints();
+    renderAgentList();
+  }
+}
+
+function registerConn(conn) {
+  conn.on('open', () => {
+    if (!peerConns.includes(conn)) {
+      peerConns.push(conn);
+      pushFeed(`<span class="highlight">[P2P]</span> Link established — Peer ${conn.peer.replace('spy-','')}`);
+      addLinkedAgent(conn);
+    }
+    updatePeerStatus();
+  });
+  conn.on('data', (data) => handlePeerData(data, conn));
+  conn.on('close', () => {
+    peerConns = peerConns.filter(c => c !== conn);
+    removeLinkedAgent(conn);
+    updatePeerStatus();
+    pushFeed(`<span class="warn">[P2P]</span> Peer disconnected — ${conn.peer.replace('spy-','')}`);
+  });
+  conn.on('error', (err) => {
+    pushFeed(`<span class="alert">[P2P]</span> Connection error: ${err.type || err}`);
+  });
+  if (conn.open) {
+    if (!peerConns.includes(conn)) {
+      peerConns.push(conn);
+      pushFeed(`<span class="highlight">[P2P]</span> Link established — Peer ${conn.peer.replace('spy-','')}`);
+      addLinkedAgent(conn);
+    }
+    updatePeerStatus();
+  }
+}
+
+function handlePeerData(data, conn) {
+  if (!data || !data.type) return;
+  isRemoteAction = true;
+  try {
+    switch (data.type) {
+      case 'chat': {
+        const line = document.createElement('div');
+        const name = data.name || 'REMOTE';
+        line.innerHTML = `<span class="ts">${fmtTs()}</span> <span class="src" style="color:var(--accent)">${escapeHtml(agentLabel(name))}</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(data.text)}</span>`;
+        commsEl.appendChild(line);
+        while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
+        commsEl.scrollTop = commsEl.scrollHeight;
+        sfx.comms();
+        focusAgent(name);
+        break;
+      }
+      case 'trigger': {
+        if (data.key && keyActions[data.key]) {
+          keyActions[data.key].action();
+          showHint(`REMOTE /${data.key} — ${keyActions[data.key].name}`);
+        }
+        break;
+      }
+      case 'name': {
+        if (data.name) {
+          updateLinkedAgentName(conn, data.name.toUpperCase());
+          pushFeed(`<span class="info">[P2P]</span> Peer changed callsign to <span style="color:var(--accent)">${escapeHtml(data.name)}</span>`);
+        }
+        break;
+      }
+    }
+  } finally {
+    isRemoteAction = false;
+  }
+}
+
+function broadcastToPeers(msg) {
+  if (isRemoteAction) return;
+  peerConns.forEach(conn => {
+    if (conn.open) conn.send(msg);
+  });
+}
+
+function initPeer() {
+  if (typeof Peer === 'undefined') {
+    pushFeed('<span class="alert">[P2P]</span> PeerJS not loaded — P2P disabled');
+    return;
+  }
+  peer = new Peer('spy-' + peerCode);
+  peer.on('open', () => {
+    pushFeed(`<span class="info">[P2P]</span> Peer initialized — Room: <span style="color:var(--amber)">${peerCode}</span>`);
+    updatePeerStatus();
+  });
+  peer.on('connection', (conn) => {
+    if (peerConns.length >= maxSlots) {
+      conn.close();
+      pushFeed('<span class="warn">[P2P]</span> Incoming connection rejected — slots full');
+      return;
+    }
+    showPeerConfirm(conn.peer.replace('spy-', '')).then(accepted => {
+      if (accepted) {
+        registerConn(conn);
+      } else {
+        conn.close();
+        pushFeed('<span class="warn">[P2P]</span> Connection rejected by operator');
+      }
+    });
+  });
+  peer.on('error', (err) => {
+    pushFeed(`<span class="alert">[P2P]</span> Peer error: ${err.type}`);
+    if (err.type === 'unavailable-id') {
+      peerCode = String(Math.floor(100000 + Math.random() * 900000));
+      pushFeed(`<span class="info">[P2P]</span> Regenerated code: ${peerCode} — retrying...`);
+      setTimeout(initPeer, 1000);
+    }
+  });
+}
+initPeer();
 </script>
 </body>
 </html>
