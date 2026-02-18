@@ -16,11 +16,13 @@ Great for playing spy with kids and nephews.
 - **Global Tracking Map** — 요원 위치를 실시간 추적하는 세계 지도 / Real-time agent tracking on a world map
 - **Satellite Orbits** — 위성 궤도 표시 및 주기적 위치 갱신 / Satellite ground tracks with periodic position updates
 - **Agent Roster** — 현장 요원 목록 및 상태 표시 / Field agent list and status display
-- **Surveillance Feed** — 감시 카메라 화면 시뮬레이션 / Simulated surveillance camera feeds
+- **Radar** — 근접 레이더 스캔 / Proximity radar scan
 - **Signal Intelligence** — 신호 정보 분석 파형 / Signal intelligence waveform analysis
-- **Comms Log** — 암호화된 통신 로그 / Encrypted communications log
+- **Encrypted Comms** — 암호화된 통신 로그 및 메시지 전송 / Encrypted communications log with message input
 - **Target Dossier** — 대상 프로필 및 위협 등급 / Target profile and threat level
-- **Slash Commands** — `/auto`, `/sound`, `/comms`, `/event`, `/name` 등 인터랙티브 명령어 / Interactive slash commands
+- **SIGINT Intercept Log** — 실시간 정보 피드 / Real-time intelligence feed
+- **P2P Link** — 여러 화면을 연결해서 이벤트 동기화 / Link multiple screens to sync events
+- **Slash Commands** — 인터랙티브 명령어로 이벤트 트리거 / Interactive commands to trigger events
 
 ## Quick Start / 시작하기
 
@@ -44,6 +46,8 @@ python3 -m http.server 8000
 
 Type `/` in the input field to see command hints. Triggers also work with `Ctrl+number`.
 
+### Triggers / 트리거
+
 | 명령어 | 설명 | Description |
 |--------|------|-------------|
 | `/1` | 레드 알럿 | Red alert |
@@ -56,15 +60,30 @@ Type `/` in the input field to see command hints. Triggers also work with `Ctrl+
 | `/8` | 추출 확인 | Extraction |
 | `/9` | 시스템 스캔 | System scan |
 | `/0` | 카운트다운 | Countdown |
+
+### Settings / 설정
+
+| 명령어 | 설명 | Description |
+|--------|------|-------------|
 | `/auto-type` | 자동 타이핑 on/off | Toggle auto-type |
 | `/auto-event` | 자동 이벤트 on/off | Toggle auto events |
 | `/auto-comms` | 자동 통신 on/off | Toggle dummy comms |
 | `/sound` | 사운드 on/off | Toggle sound |
 | `/name <이름>` | 콜사인 변경 | Change callsign |
+
+### P2P Link / 연결
+
+| 명령어 | 설명 | Description |
+|--------|------|-------------|
 | `/link` | P2P 연결 열기/닫기 | Open/close P2P link |
 | `/link <코드>` | 다른 화면에 연결 | Connect to another screen |
 | `/link-slot <N>` | 최대 연결 수 설정 | Set max connections |
-| `/shutdown` | 시스템 해킹 종료 (되돌릴 수 없음) | System hack & shutdown (irreversible) |
+
+### Special / 특수
+
+| 명령어 | 설명 | Description |
+|--------|------|-------------|
+| `/shutdown` | 시스템 해킹 종료 — 되돌릴 수 없음, P2P 전파됨 | System hack & shutdown — irreversible, propagates to linked peers |
 
 ## GitHub
 
