@@ -35,7 +35,7 @@
     overflow: hidden;
     height: 100vh;
     width: 100vw;
-    cursor: none;
+    cursor: default;
     user-select: none;
   }
 
@@ -94,7 +94,7 @@
   /* MAIN GRID */
   .main-grid {
     display: grid;
-    grid-template-columns: 280px 1fr 300px;
+    grid-template-columns: clamp(180px, 18vw, 280px) 1fr clamp(200px, 19vw, 300px);
     grid-template-rows: 1fr;
     height: calc(100vh - 36px - 28px);
     gap: 1px;
@@ -1132,7 +1132,7 @@ function drawMap() {
   // Sweep line from Langley
   if (hq) {
     const cx = hq.x * mapW, cy = hq.y * mapH;
-    const sweepLen = 250;
+    const sweepLen = Math.min(mapW, mapH) * 0.4;
     // Sweep cone (wider)
     for (let a = -0.15; a <= 0.15; a += 0.02) {
       const sx = cx + Math.cos(sweepAngle + a) * sweepLen;
@@ -1848,63 +1848,209 @@ document.body.appendChild(keyHintDiv);
 // ============= CHAT INPUT =============
 const commsInput = document.getElementById('commsInput');
 
-// Auto-focus input when clicking anywhere (except the input itself loses focus issue)
+// Auto-focus input when clicking anywhere
 document.addEventListener('click', () => {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   commsInput.focus();
 });
-
-// Keep cursor visible
 commsInput.focus();
 
-// Send message on Enter
-commsInput.addEventListener('keydown', (e) => {
-  // Small keystroke tick on every key
-  if (e.key.length === 1) {
-    playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
-  }
+// ---- AUTO-TYPE DIALOGUE POOL (100 lines) ----
+const autoTypeMessages = [
+  'Confirm visual on target. Moving to intercept position.',
+  'PAPA, hold position. Overwatch has eyes on the compound.',
+  'Relay encrypted packet to Station Vienna. Priority Alpha.',
+  'Target vehicle heading NNW on E4 highway. Speed 110km/h.',
+  'Request satellite reposition over grid 48-North 16-East.',
+  'All units maintain radio silence until further notice.',
+  'Cross-reference PROMETHEUS alias with Interpol Red Notice database.',
+  'Drone feed shows 6 hostiles at the eastern perimeter.',
+  'Switch to backup frequency. Primary channel may be compromised.',
+  'Copy. Initiating dead drop protocol at coordinates 47.5N 19.0E.',
+  'Agent 008 last known position: 52.5200N 13.4050E. Status unknown.',
+  'Run biometric scan on the surveillance footage from CAM-17A.',
+  'Extraction helicopter ETA 12 minutes. Secure the landing zone.',
+  'Financial trace shows wire transfer to Cayman account ending 4491.',
+  'Authorize use of electronic countermeasures in Sector 7.',
+  'Confirm: the asset is BLUEBIRD. Codename unchanged.',
+  'Dispatch counter-surveillance team to Hotel Sacher immediately.',
+  'Target has changed vehicles. Now in black Mercedes, plate unknown.',
+  'Intercepted burst transmission. Decryption in progress.',
+  'PAPA reports shots fired near the old bridge. Requesting QRF.',
+  'Pull up thermal imaging on the warehouse at Dock 14.',
+  'Agent COBRA requests emergency extraction from Karachi safe house.',
+  'Patch me through to the Director. This is Priority One.',
+  'SIGINT confirms: meeting scheduled 2200 local at the opera house.',
+  'All stations: threat level elevated to CRITICAL. Stay sharp.',
+  'Uploading facial recognition data to ARGUS network now.',
+  'Roger. Maintaining overwatch position on the rooftop.',
+  'The informant says the shipment arrives at dawn. Harbour Gate 3.',
+  'Negative. Do not engage until we have positive ID confirmation.',
+  'Scramble the cyber team. Someone is probing our firewall.',
+  'Task RAVEN with eyes on Moscow embassy. Report any movement.',
+  'Deploy signal jamming on 14.223 MHz. That is their command freq.',
+  'Debrief from FALCON confirms the Tangier cell is operational.',
+  'I need a full workup on ERIK VOGT. Passport, travel, financials.',
+  'PAPA, your tracker battery is critical. Conserve power.',
+  'Confirmed kill on the surveillance drone. Origin unknown.',
+  'Redirect SAT-3 to cover the Bosphorus strait. High priority.',
+  'The minister wants a briefing in 30 minutes. Prepare the deck.',
+  'Check the dead drop at Regent Park bench 7C. Sweep for devices.',
+  'Hostile SIGINT detected on our secondary channel. Switching now.',
+  'Agent GHOST has not reported in 96 hours. Initiate recovery protocol.',
+  'Weapons cache located at 48.19N 16.38E. Requesting airstrike authorization.',
+  'Negative on airstrike. Too close to civilian population. Send ground team.',
+  'TECHOPS confirms: the cipher key rotates every 4 hours.',
+  'Pull the CCTV archives from Vienna Hauptbahnhof. Last 72 hours.',
+  'Asset reports PROMETHEUS acquired new identity documents in Belgrade.',
+  'I have a clean shot. Awaiting authorization to proceed.',
+  'Hold fire. We need him alive for interrogation.',
+  'Counter-intel swept the embassy. Three bugs found and neutralized.',
+  'Relay to Langley: Operation IRON BRIDGE is a go.',
+  'Target entered the underground parking. Camera coverage is limited.',
+  'Requesting additional field operatives for Berlin station.',
+  'The double agent is feeding them false coordinates. Plan is working.',
+  'Confirm receipt of the encrypted dossier. File ref: ALPHA-7749.',
+  'Ground team in position at all four exits. Target is boxed in.',
+  'Satellite shows heat signatures. 12 personnel inside the compound.',
+  'Agent SPECTRE confirms Macau casino is the money laundering front.',
+  'Divert QRF to coordinates 48.12N 16.22E. Shots fired.',
+  'PAPA is 200 meters from the target. Maintaining visual contact.',
+  'Run voice analysis on the intercepted phone call. Match to PROMETHEUS.',
+  'Evacuate all non-essential personnel from Vienna station.',
+  'The courier will be carrying a silver briefcase. Do not lose him.',
+  'Intercepted email mentions a chemical agent. Alert HAZMAT teams.',
+  'Negative contact on frequency 7. Switching to emergency backup.',
+  'Confirm identity of individual at checkpoint BRAVO. Possible hostile.',
+  'TECHOPS: deploy the tracking nano-dust at the hotel entrance.',
+  'Target made a phone call. Duration 47 seconds. Triangulating.',
+  'All units: NIGHTFALL protocol is now active. Execute phase 2.',
+  'Sniper team EAGLE is in position on the bell tower. Ready.',
+  'Maritime patrol reports suspicious vessel 12 nautical miles offshore.',
+  'The informant is getting nervous. Arrange a new safe house.',
+  'I am reading anomalous radiation levels at the target building.',
+  'Patch the drone feed through to the main display. Top priority.',
+  'COBRA team: breach on my signal. Flashbangs first.',
+  'Cyber division traced the hack to a server farm in Pyongyang.',
+  'Asset ORACLE has decoded the latest PROMETHEUS communique.',
+  'We have a mole. Restrict all operations to need-to-know basis.',
+  'Target is using the subway system. Deploy teams to all exits.',
+  'Requesting clearance to access the NSA PRISM database.',
+  'Agent TREVELYAN signal lost 6 hours ago over the Black Sea.',
+  'The arms dealer will be at the charity gala tonight. Get me an invite.',
+  'Forensics confirms: the bomb components match the Istanbul device.',
+  'PAPA, there is a sniper on the roof at your 2 o\'clock. Take cover.',
+  'All comms encrypted. Switching to quantum-resistant protocol.',
+  'Satellite imagery confirms 4 mobile launchers at the base.',
+  'We need to move the timeline up. Execute operation at 0300.',
+  'Agent in place at the airport. Watching Gate B14 for ERIK VOGT.',
+  'HUMINT source says the meeting location has changed. Stand by.',
+  'The package is en route via diplomatic pouch. ETA 6 hours.',
+  'Sweep team found a listening device in the ambassador residence.',
+  'Target acquired facial recognition match: 97.2% confidence.',
+  'All field teams report in. I need status updates in 5 minutes.',
+  'Confirmed: PROMETHEUS has left the country. Last seen at border crossing.',
+  'The cell in Ankara is planning something big. We need more intel.',
+  'Emergency broadcast: Agent down at Tangier. Medevac requested.',
+  'Uploading new threat assessment to all field terminals now.',
+  'Run a background check on the new embassy attache. Something feels wrong.',
+  'PAPA, package secured. Heading to extraction point Charlie.',
+  'Intercepted chatter mentions a second target. Codename ATLAS.',
+  'Deploy EMP device on my mark. All electronics will go dark.',
+  'Final confirmation received from the Director. Mission is authorized.',
+];
 
+// ---- AUTO-TYPE STATE ----
+let autoTypeCurrent = '';
+let autoTypePos = 0;
+
+function pickAutoTypeMessage() {
+  autoTypeCurrent = autoTypeMessages[Math.floor(Math.random() * autoTypeMessages.length)];
+  autoTypePos = 0;
+}
+
+// ---- REPLY POOL ----
+const replyPool = [
+  { src: 'TECHOPS', msg: 'Copy that. Processing your request.' },
+  { src: 'DIRECTOR', msg: 'Acknowledged. Proceed with caution.' },
+  { src: 'DISPATCH', msg: 'Message relayed to all field stations.' },
+  { src: 'TECHOPS', msg: 'Understood. Updating ARGUS database.' },
+  { src: 'DIRECTOR', msg: 'Noted. Keep this channel secure.' },
+  { src: 'PAPA', msg: 'Received. Maintaining radio silence.' },
+  { src: 'STATION-V', msg: 'Confirmed. Adjusting operational parameters.' },
+  { src: 'TECHOPS', msg: 'Running analysis now. Stand by for results.' },
+  { src: 'DIRECTOR', msg: 'Very well. I\'ll brief the minister.' },
+  { src: 'DISPATCH', msg: 'Filed under Priority Alpha. Eyes only.' },
+  { src: 'PAPA', msg: 'Roger. Moving to secondary position now.' },
+  { src: 'TECHOPS', msg: 'Satellite feed updated. Check main display.' },
+  { src: '001', msg: 'Berlin team copies. Awaiting green light.' },
+  { src: 'DIRECTOR', msg: 'Approved. Execute at your discretion.' },
+  { src: 'STATION-K', msg: 'Karachi station acknowledges. Standing by.' },
+  { src: 'DISPATCH', msg: 'Routing backup to your position. ETA 8 minutes.' },
+  { src: 'TECHOPS', msg: 'Decryption complete. Sending results now.' },
+  { src: '004', msg: 'Tangier team in position. Ready on your mark.' },
+  { src: 'DIRECTOR', msg: 'The committee has been informed. Carry on.' },
+  { src: 'PAPA', msg: 'Copy. Going dark for 20 minutes.' },
+];
+
+function sendOperatorMsg(msg) {
+  const ts = new Date().toISOString().slice(11,19);
+  const line = document.createElement('div');
+  line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:var(--green)">OPERATOR</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(msg)}</span>`;
+  commsEl.appendChild(line);
+  while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
+  commsEl.scrollTop = commsEl.scrollHeight;
+  playTone(800, 0.06, 'sine', 0.08);
+  setTimeout(() => playTone(1200, 0.08, 'sine', 0.06), 60);
+
+  // Auto-reply
+  setTimeout(() => {
+    const reply = replyPool[Math.floor(Math.random() * replyPool.length)];
+    const rts = new Date().toISOString().slice(11,19);
+    const rline = document.createElement('div');
+    rline.innerHTML = `<span class="ts">${rts}</span> <span class="src">${reply.src}</span>: <span class="msg">${reply.msg}</span>`;
+    commsEl.appendChild(rline);
+    while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
+    commsEl.scrollTop = commsEl.scrollHeight;
+    sfx.comms();
+  }, 1500 + Math.random() * 2500);
+}
+
+// Send message on Enter, auto-type on any other key
+commsInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && commsInput.value.trim()) {
     e.preventDefault();
     const msg = commsInput.value.trim();
     commsInput.value = '';
-    
-    // Add to comms log
-    const now = new Date();
-    const ts = now.toISOString().slice(11,19);
-    const line = document.createElement('div');
-    line.innerHTML = `<span class="ts">${ts}</span> <span class="src" style="color:var(--green)">OPERATOR</span>: <span class="msg" style="color:#e8f0ff">${escapeHtml(msg)}</span>`;
-    commsEl.appendChild(line);
-    while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
-    commsEl.scrollTop = commsEl.scrollHeight;
+    autoTypeCurrent = '';
+    autoTypePos = 0;
+    sendOperatorMsg(msg);
+    return;
+  }
 
-    // Send sound
-    playTone(800, 0.06, 'sine', 0.08);
-    setTimeout(() => playTone(1200, 0.08, 'sine', 0.06), 60);
+  // Auto-type: any printable key advances the pre-selected message
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
 
-    // Auto-reply after 1.5-4s
-    setTimeout(() => {
-      const replies = [
-        { src: 'TECHOPS', msg: 'Copy that. Processing your request.' },
-        { src: 'DIRECTOR', msg: 'Acknowledged. Proceed with caution.' },
-        { src: 'DISPATCH', msg: 'Message relayed to all field stations.' },
-        { src: 'TECHOPS', msg: 'Understood. Updating ARGUS database.' },
-        { src: 'DIRECTOR', msg: 'Noted. Keep this channel secure.' },
-        { src: 'PAPA', msg: 'Received. Maintaining radio silence.' },
-        { src: 'STATION-V', msg: 'Confirmed. Adjusting operational parameters.' },
-        { src: 'TECHOPS', msg: 'Running analysis now. Stand by for results.' },
-        { src: 'DIRECTOR', msg: 'Very well. I\'ll brief the minister.' },
-        { src: 'DISPATCH', msg: 'Filed under Priority Alpha. Eyes only.' },
-      ];
-      const reply = replies[Math.floor(Math.random() * replies.length)];
-      const rts = new Date().toISOString().slice(11,19);
-      const rline = document.createElement('div');
-      rline.innerHTML = `<span class="ts">${rts}</span> <span class="src">${reply.src}</span>: <span class="msg">${reply.msg}</span>`;
-      commsEl.appendChild(rline);
-      while (commsEl.children.length > 30) commsEl.removeChild(commsEl.firstChild);
-      commsEl.scrollTop = commsEl.scrollHeight;
-      sfx.comms();
-    }, 1500 + Math.random() * 2500);
+    if (!autoTypeCurrent || autoTypePos >= autoTypeCurrent.length) {
+      pickAutoTypeMessage();
+    }
+
+    autoTypePos++;
+    commsInput.value = autoTypeCurrent.slice(0, autoTypePos);
+  }
+
+  // Backspace removes one auto-typed char
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    if (autoTypePos > 0) {
+      autoTypePos--;
+      commsInput.value = autoTypeCurrent.slice(0, autoTypePos);
+    }
+    if (autoTypePos === 0) {
+      autoTypeCurrent = '';
+    }
   }
 });
 
