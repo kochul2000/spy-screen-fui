@@ -637,7 +637,7 @@
       <div class="comms-log" id="commsLog"></div>
       <div class="comms-input-wrap">
         <span class="comms-input-prefix">OPERATOR &gt;</span>
-        <input type="text" id="commsInput" class="comms-input" autocomplete="off" spellcheck="false" placeholder="Type message..." />
+        <input type="text" id="commsInput" class="comms-input" autocomplete="off" spellcheck="false" placeholder="Type anything — auto-fill active" />
       </div>
     </div>
     <div class="signal-section">
@@ -1961,6 +1961,7 @@ const autoTypeMessages = [
 ];
 
 // ---- AUTO-TYPE STATE ----
+let autoTypeEnabled = true;
 let autoTypeCurrent = '';
 let autoTypePos = 0;
 
@@ -2028,28 +2029,48 @@ commsInput.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Auto-type: any printable key advances the pre-selected message
-  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-    e.preventDefault();
-    playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
+  if (autoTypeEnabled) {
+    // Auto-type: any printable key advances the pre-selected message
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
 
-    if (!autoTypeCurrent || autoTypePos >= autoTypeCurrent.length) {
-      pickAutoTypeMessage();
-    }
+      if (!autoTypeCurrent || autoTypePos >= autoTypeCurrent.length) {
+        pickAutoTypeMessage();
+      }
 
-    autoTypePos++;
-    commsInput.value = autoTypeCurrent.slice(0, autoTypePos);
-  }
-
-  // Backspace removes one auto-typed char
-  if (e.key === 'Backspace') {
-    e.preventDefault();
-    if (autoTypePos > 0) {
-      autoTypePos--;
+      autoTypePos++;
       commsInput.value = autoTypeCurrent.slice(0, autoTypePos);
+
+      // Auto-send when message is complete
+      if (autoTypePos >= autoTypeCurrent.length) {
+        setTimeout(() => {
+          const msg = commsInput.value.trim();
+          if (msg) {
+            commsInput.value = '';
+            autoTypeCurrent = '';
+            autoTypePos = 0;
+            sendOperatorMsg(msg);
+          }
+        }, 300);
+      }
     }
-    if (autoTypePos === 0) {
-      autoTypeCurrent = '';
+
+    // Backspace removes one auto-typed char
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (autoTypePos > 0) {
+        autoTypePos--;
+        commsInput.value = autoTypeCurrent.slice(0, autoTypePos);
+      }
+      if (autoTypePos === 0) {
+        autoTypeCurrent = '';
+      }
+    }
+  } else {
+    // Manual mode: normal typing with keystroke sound
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
     }
   }
 });
@@ -2063,6 +2084,22 @@ function escapeHtml(text) {
 // ============= CTRL + NUMBER TRIGGERS =============
 document.addEventListener('keydown', (e) => {
   if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  // Ctrl+T: toggle auto-type
+  if (e.ctrlKey && e.key === 't') {
+    e.preventDefault();
+    autoTypeEnabled = !autoTypeEnabled;
+    autoTypeCurrent = '';
+    autoTypePos = 0;
+    commsInput.value = '';
+    commsInput.placeholder = autoTypeEnabled ? 'Type anything — auto-fill active' : 'Type message...';
+    keyHintDiv.textContent = autoTypeEnabled ? '[Ctrl+T] AUTO-TYPE ON' : '[Ctrl+T] AUTO-TYPE OFF — MANUAL MODE';
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 2000);
+    sfx.confirm();
+    return;
+  }
 
   // Only fire triggers on Ctrl + number
   if (e.ctrlKey && keyActions[e.key]) {
