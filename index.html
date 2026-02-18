@@ -791,15 +791,15 @@
   <div class="cmd-hint-item"><span class="cmd-key">/auto-comms</span><span class="cmd-desc">Toggle dummy comms <span style="opacity:0.4">on / off</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/name</span><span class="cmd-desc">Set callsign (/name PAPA)</span></div>
   <div class="cmd-hint-item" style="border-top:1px solid rgba(30,144,255,0.15)"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert <span style="opacity:0.4">(Ctrl+1)</span></span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion <span style="opacity:0.4">(Ctrl+2)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Signal intercept <span style="opacity:0.4">(Ctrl+2)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/3</span><span class="cmd-desc">Target lock <span style="opacity:0.4">(Ctrl+3)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/4</span><span class="cmd-desc">Incoming comms <span style="opacity:0.4">(Ctrl+4)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/5</span><span class="cmd-desc">Data burst <span style="opacity:0.4">(Ctrl+5)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/6</span><span class="cmd-desc">Security breach <span style="opacity:0.4">(Ctrl+6)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/7</span><span class="cmd-desc">Satellite uplink <span style="opacity:0.4">(Ctrl+7)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/8</span><span class="cmd-desc">Extraction <span style="opacity:0.4">(Ctrl+8)</span></span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/9</span><span class="cmd-desc">Countdown <span style="opacity:0.4">(Ctrl+9)</span></span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/0</span><span class="cmd-desc">System scan <span style="opacity:0.4">(Ctrl+0)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/9</span><span class="cmd-desc">System scan <span style="opacity:0.4">(Ctrl+9)</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/0</span><span class="cmd-desc">Countdown <span style="opacity:0.4">(Ctrl+0)</span></span></div>
   <div class="cmd-hint-item" style="border-top:1px solid rgba(30,144,255,0.15)"><span class="cmd-key">/link</span><span class="cmd-desc">P2P on·off·connect (/link 774219)</span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/link-slot</span><span class="cmd-desc">Set max peers (/link-slot 2)</span></div>
 </div>
@@ -1919,7 +1919,7 @@ function triggerMapAlert() {
 
 // Auto events toggle
 let autoEventsEnabled = true;
-const autoEventKeys = ['1','3','4','5','6','7','8','0']; // exclude 2(explosion), 9(countdown)
+const autoEventKeys = ['1','2','3','4','5','6','7','8','9'];
 
 function fireAutoEvent() {
   if (!autoEventsEnabled) return;
@@ -2069,27 +2069,21 @@ const keyActions = {
     }
   },
   '2': {
-    name: 'EXPLOSION',
+    name: 'SIGNAL INTERCEPT',
     action: () => {
-      sfx.explosion();
+      sfx.scan();
       const loc = eventLocations[Math.floor(Math.random() * eventLocations.length)];
       mapEvents.push({
-        type: 'detonation', color: [255,100,30], label: '💥 EXPLOSION CONFIRMED',
-        duration: 400, icon: 'explosion',
+        type: 'intercept', color: [255,180,60], label: 'SIGNAL INTERCEPT',
+        duration: 300, icon: 'intercept',
         x: loc.x, y: loc.y, name: loc.name,
-        age: 0, maxAge: 400, ringPhase: 0,
+        age: 0, maxAge: 300, ringPhase: 0,
       });
-      document.body.style.transform = 'translate(3px, -2px)';
-      setTimeout(() => document.body.style.transform = 'translate(-3px, 2px)', 50);
-      setTimeout(() => document.body.style.transform = 'translate(2px, 3px)', 100);
-      setTimeout(() => document.body.style.transform = 'translate(-1px, -1px)', 150);
-      setTimeout(() => document.body.style.transform = 'none', 200);
-      screenFlash.classList.remove('active');
-      void screenFlash.offsetWidth;
-      screenFlash.style.background = 'rgba(255,120,30,0.12)';
-      screenFlash.classList.add('active');
-      setTimeout(() => screenFlash.style.background = 'rgba(255,30,30,0.06)', 800);
-      pushFeed(`<span class="alert">[DETONATION]</span> Explosion confirmed at ${loc.name} — Damage assessment pending`);
+      const freqs = ['14.223 MHz', '7.041 MHz', '21.350 MHz', '3.518 MHz', '28.445 MHz'];
+      const freq = freqs[Math.floor(Math.random() * freqs.length)];
+      const protos = ['AES-256', 'CHACHA20', 'RSA-4096', 'BLOWFISH'];
+      const proto = protos[Math.floor(Math.random() * protos.length)];
+      pushFeed(`<span class="warn">[SIGINT]</span> Encrypted signal intercepted at ${loc.name} — ${freq} — ${proto} — Decrypting...`);
     }
   },
   '3': {
@@ -2211,7 +2205,7 @@ const keyActions = {
       }
     }
   },
-  '9': {
+  '0': {
     name: 'COUNTDOWN',
     action: () => {
       let count = 10;
@@ -2254,7 +2248,7 @@ const keyActions = {
       }, 1000);
     }
   },
-  '0': {
+  '9': {
     name: 'SYSTEM SCAN',
     action: () => {
       sfx.scan();

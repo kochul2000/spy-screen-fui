@@ -47,15 +47,15 @@ Type `/` in the input field to see command hints. Triggers also work with `Ctrl+
 | 명령어 | 설명 | Description |
 |--------|------|-------------|
 | `/1` | 레드 알럿 | Red alert |
-| `/2` | 폭발 | Explosion |
+| `/2` | 신호 가로채기 | Signal intercept |
 | `/3` | 타겟 포착 | Target lock |
 | `/4` | 긴급 통신 수신 | Incoming comms |
 | `/5` | 데이터 버스트 | Data burst |
 | `/6` | 보안 침해 | Security breach |
 | `/7` | 위성 스캔 | Satellite uplink |
 | `/8` | 추출 확인 | Extraction |
-| `/9` | 카운트다운 | Countdown |
-| `/0` | 시스템 스캔 | System scan |
+| `/9` | 시스템 스캔 | System scan |
+| `/0` | 카운트다운 | Countdown |
 | `/auto-type` | 자동 타이핑 on/off | Toggle auto-type |
 | `/auto-event` | 자동 이벤트 on/off | Toggle auto events |
 | `/auto-comms` | 자동 통신 on/off | Toggle dummy comms |
