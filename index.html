@@ -708,7 +708,8 @@
   <div class="cmd-hint-title">OPERATOR COMMANDS</div>
   <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto</span><span class="cmd-desc">Toggle auto-type mode</span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/event</span><span class="cmd-desc">Toggle auto events</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/mute</span><span class="cmd-desc">Toggle audio</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/sound</span><span class="cmd-desc">Toggle audio</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/comms</span><span class="cmd-desc">Toggle dummy comms</span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/name</span><span class="cmd-desc">Set callsign (/name PAPA)</span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert <span style="opacity:0.4">(Ctrl+1)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion <span style="opacity:0.4">(Ctrl+2)</span></span></div>
@@ -1572,7 +1573,9 @@ const commsLines = [
 ];
 
 let commsIdx = 0;
+let dummyCommsEnabled = true;
 function addCommsLine() {
+  if (!dummyCommsEnabled) return;
   const c = commsLines[commsIdx % commsLines.length];
   const now = new Date();
   const ts = now.toISOString().slice(11,19);
@@ -2198,9 +2201,18 @@ function handleSlashCommand(cmd) {
     return true;
   }
 
-  if (cmd === '/mute') {
+  if (cmd === '/sound') {
     isMuted = !isMuted;
-    keyHintDiv.textContent = isMuted ? 'AUDIO MUTED' : 'AUDIO ON';
+    keyHintDiv.textContent = isMuted ? 'SOUND OFF' : 'SOUND ON';
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+    return true;
+  }
+
+  if (cmd === '/comms') {
+    dummyCommsEnabled = !dummyCommsEnabled;
+    keyHintDiv.textContent = dummyCommsEnabled ? 'DUMMY COMMS ON' : 'DUMMY COMMS OFF';
     keyHintDiv.style.opacity = '1';
     clearTimeout(keyHintDiv._timer);
     keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
