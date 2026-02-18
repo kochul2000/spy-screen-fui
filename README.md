@@ -38,6 +38,33 @@ open index.html
 python3 -m http.server 8000
 ```
 
+## Commands / 명령어
+
+입력창에 `/`를 입력하면 명령어 힌트가 표시됩니다. `Ctrl+숫자`로도 트리거할 수 있습니다.
+
+Type `/` in the input field to see command hints. Triggers also work with `Ctrl+number`.
+
+| 명령어 | 설명 | Description |
+|--------|------|-------------|
+| `/1` | 레드 알럿 | Red alert |
+| `/2` | 폭발 | Explosion |
+| `/3` | 타겟 포착 | Target lock |
+| `/4` | 긴급 통신 수신 | Incoming comms |
+| `/5` | 데이터 버스트 | Data burst |
+| `/6` | 보안 침해 | Security breach |
+| `/7` | 위성 스캔 | Satellite uplink |
+| `/8` | 추출 확인 | Extraction |
+| `/9` | 카운트다운 | Countdown |
+| `/0` | 시스템 스캔 | System scan |
+| `/auto-type` | 자동 타이핑 on/off | Toggle auto-type |
+| `/auto-event` | 자동 이벤트 on/off | Toggle auto events |
+| `/auto-comms` | 자동 통신 on/off | Toggle dummy comms |
+| `/sound` | 사운드 on/off | Toggle sound |
+| `/name <이름>` | 콜사인 변경 | Change callsign |
+| `/link` | P2P 연결 열기/닫기 | Open/close P2P link |
+| `/link <코드>` | 다른 화면에 연결 | Connect to another screen |
+| `/link-slot <N>` | 최대 연결 수 설정 | Set max connections |
+
 ## GitHub
 
 **https://github.com/kochul2000/spy-screen-fui**
