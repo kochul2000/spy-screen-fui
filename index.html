@@ -542,6 +542,52 @@
     animation: screenFlash 0.8s ease-out forwards;
   }
 
+  /* Slash command hint overlay */
+  .cmd-hint-overlay {
+    position: fixed;
+    bottom: 42px;
+    right: 14px;
+    background: rgba(6,10,16,0.95);
+    border: 1px solid rgba(30,144,255,0.4);
+    padding: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    z-index: 10001;
+    min-width: 260px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.15s, transform 0.15s;
+    pointer-events: none;
+  }
+  .cmd-hint-overlay.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .cmd-hint-title {
+    padding: 6px 12px;
+    color: var(--accent);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    border-bottom: 1px solid rgba(30,144,255,0.2);
+  }
+  .cmd-hint-item {
+    padding: 5px 12px;
+    display: flex;
+    gap: 12px;
+    border-bottom: 1px solid rgba(30,144,255,0.06);
+    color: var(--text-dim);
+  }
+  .cmd-hint-item:last-child { border-bottom: none; }
+  .cmd-hint-item .cmd-key {
+    color: var(--green);
+    min-width: 60px;
+    flex-shrink: 0;
+  }
+  .cmd-hint-item .cmd-desc { color: var(--text); }
+  .cmd-hint-item.active-cmd { background: var(--accent-dim); }
+  .cmd-hint-item.active-cmd .cmd-key { color: var(--amber); }
+
   @keyframes screenFlash {
     0% { opacity: 1; }
     100% { opacity: 0; }
@@ -637,7 +683,7 @@
       <div class="comms-log" id="commsLog"></div>
       <div class="comms-input-wrap">
         <span class="comms-input-prefix">OPERATOR &gt;</span>
-        <input type="text" id="commsInput" class="comms-input" autocomplete="off" spellcheck="false" placeholder="Type anything — auto-fill active" />
+        <input type="text" id="commsInput" class="comms-input" autocomplete="off" spellcheck="false" placeholder="Type anything — auto-fill active  [/help]" />
       </div>
     </div>
     <div class="signal-section">
@@ -656,6 +702,20 @@
 
 <div class="fullscreen-hint">CLICK ANYWHERE FOR FULLSCREEN</div>
 <div class="screen-flash" id="screenFlash"></div>
+<div class="cmd-hint-overlay" id="cmdHint">
+  <div class="cmd-hint-title">OPERATOR COMMANDS</div>
+  <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto</span><span class="cmd-desc">Toggle auto-type mode</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/3</span><span class="cmd-desc">Target lock</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/4</span><span class="cmd-desc">Incoming comms</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/5</span><span class="cmd-desc">Data burst</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/6</span><span class="cmd-desc">Security breach</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/7</span><span class="cmd-desc">Satellite uplink</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/8</span><span class="cmd-desc">Extraction</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/9</span><span class="cmd-desc">Countdown</span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/0</span><span class="cmd-desc">System scan</span></div>
+</div>
 
 <script>
 // ============= CLOCK =============
@@ -2017,16 +2077,152 @@ function sendOperatorMsg(msg) {
   }, 1500 + Math.random() * 2500);
 }
 
+// ============= SLASH COMMAND HINT =============
+const cmdHint = document.getElementById('cmdHint');
+
+function showCmdHint() { cmdHint.classList.add('visible'); }
+function hideCmdHint() { cmdHint.classList.remove('visible'); }
+
+function setAutoType(enabled) {
+  autoTypeEnabled = enabled;
+  autoTypeCurrent = '';
+  autoTypePos = 0;
+  commsInput.value = '';
+  commsInput.placeholder = autoTypeEnabled ? 'Type anything — auto-fill active  [/help]' : 'Type message or /command  [/help]';
+  keyHintDiv.textContent = autoTypeEnabled ? 'AUTO-TYPE ON' : 'AUTO-TYPE OFF — MANUAL MODE';
+  keyHintDiv.style.opacity = '1';
+  clearTimeout(keyHintDiv._timer);
+  keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 2000);
+  sfx.confirm();
+}
+
+function handleSlashCommand(cmd) {
+  hideCmdHint();
+  commsInput.value = '';
+
+  if (cmd === '/auto') {
+    setAutoType(!autoTypeEnabled);
+    return true;
+  }
+
+  // /1 ~ /0 → trigger keyActions
+  const numMatch = cmd.match(/^\/([0-9])$/);
+  if (numMatch && keyActions[numMatch[1]]) {
+    const action = keyActions[numMatch[1]];
+    action.action();
+    keyHintDiv.textContent = `/${numMatch[1]} — ${action.name}`;
+    keyHintDiv.style.opacity = '1';
+    clearTimeout(keyHintDiv._timer);
+    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+    return true;
+  }
+
+  return false;
+}
+
 // Send message on Enter, auto-type on any other key
 commsInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && commsInput.value.trim()) {
+  const val = commsInput.value;
+
+  if (e.key === 'Enter') {
     e.preventDefault();
-    const msg = commsInput.value.trim();
+    const trimmed = val.trim();
+    if (!trimmed) return;
+
+    // Check slash commands first
+    if (trimmed.startsWith('/')) {
+      if (handleSlashCommand(trimmed)) return;
+    }
+
+    // Normal send
     commsInput.value = '';
     autoTypeCurrent = '';
     autoTypePos = 0;
-    sendOperatorMsg(msg);
+    hideCmdHint();
+    sendOperatorMsg(trimmed);
     return;
+  }
+
+  // Ctrl+C: turn off auto-type
+  if (e.ctrlKey && e.key === 'c') {
+    if (autoTypeEnabled) {
+      e.preventDefault();
+      setAutoType(false);
+      hideCmdHint();
+      return;
+    }
+  }
+
+  // Escape: clear input & hide hint
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    commsInput.value = '';
+    autoTypeCurrent = '';
+    autoTypePos = 0;
+    hideCmdHint();
+    return;
+  }
+
+  // If typing a slash command in manual mode (or slash mode)
+  if (!autoTypeEnabled || val === '' || val.startsWith('/')) {
+    // Let "/" through naturally in manual mode
+    if (e.key === '/' && val === '') {
+      // Will become "/" after default handler — show hint on next tick
+      setTimeout(() => {
+        if (commsInput.value === '/') showCmdHint();
+      }, 0);
+      // Disable auto-type temporarily for command entry
+      if (autoTypeEnabled) {
+        e.preventDefault();
+        commsInput.value = '/';
+        showCmdHint();
+      }
+      playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
+      return;
+    }
+
+    // If we're in slash-command entry mode (value starts with /)
+    if (val.startsWith('/')) {
+      // Allow normal typing for the command
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        playTone(3000 + Math.random()*1000, 0.02, 'sine', 0.03);
+      }
+      // Update hint highlight on next tick
+      setTimeout(() => {
+        const cv = commsInput.value;
+        if (cv.startsWith('/') && cv.length > 1) {
+          // Filter matching commands
+          const items = cmdHint.querySelectorAll('.cmd-hint-item');
+          let anyMatch = false;
+          items.forEach(item => {
+            const key = item.querySelector('.cmd-key').textContent;
+            if (key.startsWith(cv)) {
+              item.style.display = '';
+              anyMatch = true;
+            } else {
+              item.style.display = 'none';
+            }
+          });
+          if (anyMatch) showCmdHint(); else hideCmdHint();
+        } else if (cv === '/') {
+          cmdHint.querySelectorAll('.cmd-hint-item').forEach(i => i.style.display = '');
+          showCmdHint();
+        } else {
+          hideCmdHint();
+        }
+      }, 0);
+
+      if (e.key === 'Backspace') {
+        setTimeout(() => {
+          if (commsInput.value === '') hideCmdHint();
+          else if (commsInput.value === '/') {
+            cmdHint.querySelectorAll('.cmd-hint-item').forEach(i => i.style.display = '');
+            showCmdHint();
+          }
+        }, 0);
+      }
+      return;
+    }
   }
 
   if (autoTypeEnabled) {
@@ -2085,23 +2281,7 @@ function escapeHtml(text) {
 document.addEventListener('keydown', (e) => {
   if (audioCtx.state === 'suspended') audioCtx.resume();
 
-  // Ctrl+T: toggle auto-type
-  if (e.ctrlKey && e.key === 't') {
-    e.preventDefault();
-    autoTypeEnabled = !autoTypeEnabled;
-    autoTypeCurrent = '';
-    autoTypePos = 0;
-    commsInput.value = '';
-    commsInput.placeholder = autoTypeEnabled ? 'Type anything — auto-fill active' : 'Type message...';
-    keyHintDiv.textContent = autoTypeEnabled ? '[Ctrl+T] AUTO-TYPE ON' : '[Ctrl+T] AUTO-TYPE OFF — MANUAL MODE';
-    keyHintDiv.style.opacity = '1';
-    clearTimeout(keyHintDiv._timer);
-    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 2000);
-    sfx.confirm();
-    return;
-  }
-
-  // Only fire triggers on Ctrl + number
+  // Only fire triggers on Ctrl + number (when not in input slash mode)
   if (e.ctrlKey && keyActions[e.key]) {
     e.preventDefault();
     const action = keyActions[e.key];
