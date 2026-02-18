@@ -2609,6 +2609,7 @@ function handleSlashCommand(cmd) {
   }
 
   if (base === '/shutdown') {
+    broadcastToPeers({type:'shutdown'});
     initiateShutdown();
     return true;
   }
@@ -3146,6 +3147,10 @@ function handlePeerData(data, conn) {
           keyActions[data.key].action();
           showHint(`REMOTE /${data.key} — ${keyActions[data.key].name}`);
         }
+        break;
+      }
+      case 'shutdown': {
+        initiateShutdown();
         break;
       }
       case 'name': {
