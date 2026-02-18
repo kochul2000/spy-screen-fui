@@ -706,10 +706,10 @@
 <div class="screen-flash" id="screenFlash"></div>
 <div class="cmd-hint-overlay" id="cmdHint">
   <div class="cmd-hint-title">OPERATOR COMMANDS</div>
-  <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto</span><span class="cmd-desc">Toggle auto-type mode</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/event</span><span class="cmd-desc">Toggle auto events</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/sound</span><span class="cmd-desc">Toggle audio</span></div>
-  <div class="cmd-hint-item"><span class="cmd-key">/comms</span><span class="cmd-desc">Toggle dummy comms</span></div>
+  <div class="cmd-hint-item active-cmd"><span class="cmd-key">/auto</span><span class="cmd-desc">Toggle auto-type <span style="opacity:0.4">on / off</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/event</span><span class="cmd-desc">Toggle auto events <span style="opacity:0.4">on / off</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/sound</span><span class="cmd-desc">Toggle audio <span style="opacity:0.4">on / off</span></span></div>
+  <div class="cmd-hint-item"><span class="cmd-key">/comms</span><span class="cmd-desc">Toggle dummy comms <span style="opacity:0.4">on / off</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/name</span><span class="cmd-desc">Set callsign (/name PAPA)</span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/1</span><span class="cmd-desc">Red alert <span style="opacity:0.4">(Ctrl+1)</span></span></div>
   <div class="cmd-hint-item"><span class="cmd-key">/2</span><span class="cmd-desc">Explosion <span style="opacity:0.4">(Ctrl+2)</span></span></div>
@@ -2180,66 +2180,71 @@ function setAutoType(enabled) {
   sfx.confirm();
 }
 
+// Parse toggle arg: returns true/false or null (= flip)
+function parseToggle(arg, current) {
+  if (!arg) return !current;
+  const v = arg.toLowerCase();
+  if (['on','true','1','yes'].includes(v)) return true;
+  if (['off','false','0','no'].includes(v)) return false;
+  return !current;
+}
+
+function showHint(text) {
+  keyHintDiv.textContent = text;
+  keyHintDiv.style.opacity = '1';
+  clearTimeout(keyHintDiv._timer);
+  keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+}
+
 function handleSlashCommand(cmd) {
   hideCmdHint();
   commsInput.value = '';
 
-  if (cmd === '/auto') {
-    setAutoType(!autoTypeEnabled);
+  // Split command and argument
+  const parts = cmd.match(/^(\/\S+)\s*(.*)$/);
+  if (!parts) return false;
+  const base = parts[1].toLowerCase();
+  const arg = parts[2] || '';
+
+  if (base === '/auto') {
+    setAutoType(parseToggle(arg, autoTypeEnabled));
     return true;
   }
 
-  if (cmd === '/event') {
-    autoEventsEnabled = !autoEventsEnabled;
-    keyHintDiv.textContent = autoEventsEnabled ? 'AUTO EVENTS ON' : 'AUTO EVENTS OFF';
-    keyHintDiv.style.opacity = '1';
-    clearTimeout(keyHintDiv._timer);
-    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+  if (base === '/event') {
+    autoEventsEnabled = parseToggle(arg, autoEventsEnabled);
+    showHint(autoEventsEnabled ? 'AUTO EVENTS ON' : 'AUTO EVENTS OFF');
     pushFeed(autoEventsEnabled
       ? '<span class="highlight">[SYSTEM]</span> Auto events ENABLED'
       : '<span class="warn">[SYSTEM]</span> Auto events DISABLED');
     return true;
   }
 
-  if (cmd === '/sound') {
-    isMuted = !isMuted;
-    keyHintDiv.textContent = isMuted ? 'SOUND OFF' : 'SOUND ON';
-    keyHintDiv.style.opacity = '1';
-    clearTimeout(keyHintDiv._timer);
-    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+  if (base === '/sound') {
+    isMuted = !parseToggle(arg, !isMuted);
+    showHint(isMuted ? 'SOUND OFF' : 'SOUND ON');
     return true;
   }
 
-  if (cmd === '/comms') {
-    dummyCommsEnabled = !dummyCommsEnabled;
-    keyHintDiv.textContent = dummyCommsEnabled ? 'DUMMY COMMS ON' : 'DUMMY COMMS OFF';
-    keyHintDiv.style.opacity = '1';
-    clearTimeout(keyHintDiv._timer);
-    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+  if (base === '/comms') {
+    dummyCommsEnabled = parseToggle(arg, dummyCommsEnabled);
+    showHint(dummyCommsEnabled ? 'DUMMY COMMS ON' : 'DUMMY COMMS OFF');
     return true;
   }
 
-  // /name <nickname>
-  const nameMatch = cmd.match(/^\/name\s+(.+)$/i);
-  if (nameMatch) {
-    operatorName = nameMatch[1].trim().toUpperCase();
+  if (base === '/name' && arg) {
+    operatorName = arg.trim().toUpperCase();
     document.querySelector('.comms-input-prefix').textContent = operatorName + ' >';
-    keyHintDiv.textContent = `CALLSIGN: ${operatorName}`;
-    keyHintDiv.style.opacity = '1';
-    clearTimeout(keyHintDiv._timer);
-    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+    showHint(`CALLSIGN: ${operatorName}`);
     return true;
   }
 
   // /1 ~ /0 → trigger keyActions
-  const numMatch = cmd.match(/^\/([0-9])$/);
+  const numMatch = base.match(/^\/([0-9])$/);
   if (numMatch && keyActions[numMatch[1]]) {
     const action = keyActions[numMatch[1]];
     action.action();
-    keyHintDiv.textContent = `/${numMatch[1]} — ${action.name}`;
-    keyHintDiv.style.opacity = '1';
-    clearTimeout(keyHintDiv._timer);
-    keyHintDiv._timer = setTimeout(() => keyHintDiv.style.opacity = '0', 1500);
+    showHint(`/${numMatch[1]} — ${action.name}`);
     return true;
   }
 
